@@ -74,6 +74,7 @@ function renderBest(){
 /* ---------- ゲーム開始 ---------- */
 async function startGame(){
   S.locs    = pickLocations(S.settings.region, S.settings.difficulty, S.settings.rounds);
+  S.used    = S.locs.map(l => l.name);      // 出題済み（スキップ分も加えていく）
   S.idx     = 0;
   S.total   = 0;
   S.results = [];
@@ -109,6 +110,16 @@ async function loadRound(){
   $("btn-reset-view").hidden = !Pano.canReset();
 
   startTimer();
+}
+
+/** 屋内など遊べない場所だったとき、同じラウンドのまま別の場所に差し替える */
+async function skipRound(){
+  if (S.locked) return;
+  const pool = pickLocations(S.settings.region, S.settings.difficulty, 60);
+  const loc  = pool.find(l => S.used.indexOf(l.name) < 0) || pool[0];
+  S.used.push(loc.name);
+  S.locs[S.idx] = loc;
+  await loadRound();                        // ラウンド番号はそのまま、時間も引き直す
 }
 
 /* ---------- タイマー ---------- */
@@ -222,6 +233,7 @@ function initEvents(){
   $("btn-again").addEventListener("click", startGame);
   $("btn-home").addEventListener("click", () => { showScreen("screen-home"); renderBest(); });
   $("btn-reset-view").addEventListener("click", () => Pano.resetView());
+  $("btn-skip").addEventListener("click", skipRound);
 
   // どの画面からでも押せる退出ボタン（状況に応じた確認を出す）
   $("btn-exit").addEventListener("click", () => {

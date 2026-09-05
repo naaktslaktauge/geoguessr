@@ -33,7 +33,8 @@ const Multi = (() => {
         mode: "all",
         settings: { rounds:5, laps:1, timeLimit:120, region:"world", difficulty:"all" },
         phase: "lobby", round: 0, totalRounds: 0,
-        quizmasterId: null, location: null, guesses: {}, deadline: null, timer: null
+        quizmasterId: null, location: null, guesses: {}, skipVotes: [],
+        used: [], deadline: null, timer: null
       };
       C.joined = true;
       hSync();
@@ -150,6 +151,9 @@ const Multi = (() => {
       hSync();
       hMaybeEndRound();
     }
+    else if (msg.t === "skip"){
+      hOnSkip(from);
+    }
     else if (msg.t === "picked" && H.phase === "picking" && from === H.quizmasterId){
       const loc = parseLatLng(msg.lat, msg.lng);
       if (!loc) return;
@@ -163,16 +167,23 @@ const Multi = (() => {
     H.players.forEach(p => p.score = 0);
     H.round = 0;
     H.totalRounds = totalRounds(H.mode, alive, H.settings);
-    H.queue = H.mode === "all"
-      ? pickLocations(H.settings.region, H.settings.difficulty, H.totalRounds)
-      : null;
+    H.used = [];                 // 出題済み（スキップした地点も含む）
     hNextRound();
+  }
+
+  /** まだ出していない地点を1つ引く。スキップ時の引き直しにも使う */
+  function hDrawLocation(){
+    const pool = pickLocations(H.settings.region, H.settings.difficulty, 60);
+    const loc = pool.find(l => H.used.indexOf(l.name) < 0) || pool[0];
+    H.used.push(loc.name);
+    return loc;
   }
 
   function hNextRound(){
     if (H.timer){ clearTimeout(H.timer); H.timer = null; }
     H.round++;
     H.guesses = {};
+    H.skipVotes = [];
     H.location = null;
     H.deadline = null;
     H.results = null;
@@ -187,7 +198,7 @@ const Multi = (() => {
       hSync();
     } else {
       H.quizmasterId = null;
-      hStartPlaying(H.queue[H.round - 1]);
+      hStartPlaying(hDrawLocation());
     }
   }
 
@@ -198,6 +209,43 @@ const Multi = (() => {
     hSync();
     if (H.deadline){
       H.timer = setTimeout(() => hEndRound(), H.settings.timeLimit * 1000 + 500);
+    }
+  }
+
+  /** スキップに必要な票数（回答者の過半数。2人なら2人、3〜4人なら2人） */
+  function hSkipNeeded(){
+    const n = H.players.filter(p => p.connected && p.id !== H.quizmasterId).length;
+    return Math.max(1, Math.floor(n / 2) + 1);
+  }
+
+  /** スキップ希望の受付。出題者は自分の判断で出題し直せる */
+  function hOnSkip(from){
+    if (H.phase !== "playing") return;
+    if (H.mode === "quiz" && from === H.quizmasterId){
+      hRedoRound();                                  // 出題者は単独で引き直せる
+      return;
+    }
+    const p = H.players.find(x => x.id === from);
+    if (!p || !p.connected) return;
+    const i = H.skipVotes.indexOf(from);
+    if (i >= 0) H.skipVotes.splice(i, 1);            // もう一度押したら取り消し
+    else H.skipVotes.push(from);
+    if (H.skipVotes.length >= hSkipNeeded()) hRedoRound();
+    else hSync();
+  }
+
+  /** 同じラウンド番号のまま出題をやり直す */
+  function hRedoRound(){
+    if (H.timer){ clearTimeout(H.timer); H.timer = null; }
+    H.guesses = {};
+    H.skipVotes = [];
+    H.deadline = null;
+    if (H.mode === "quiz"){
+      H.location = null;
+      H.phase = "picking";                           // 出題者が選び直す
+      hSync();
+    } else {
+      hStartPlaying(hDrawLocation());                // 別の地点を引き直す
     }
   }
 
@@ -240,6 +288,8 @@ const Multi = (() => {
         ? (showAnswer ? H.location : { lat:H.location.lat, lng:H.location.lng })
         : null,
       answered: Object.keys(H.guesses),
+      skipVotes: H.skipVotes || [],
+      skipNeeded: hSkipNeeded(),
       results: showAnswer ? H.results : null,
       // 端末ごとに時計がずれているため、締め切りを絶対時刻で配ると
       // そのズレがそのまま残り時間の差になる。「あと何ミリ秒か」を配る。
@@ -295,6 +345,7 @@ const Multi = (() => {
       }
       Pano.clear($("m-pano"));
       $("btn-mreset").hidden = true;
+      $("btn-mskip").hidden = true;
       return;
     }
 
@@ -326,6 +377,26 @@ const Multi = (() => {
       b.disabled = true;
       b.textContent = "回答しました（他の人を待っています）";
     }
+    renderSkip();
+  }
+
+  /** スキップボタンの表示。出題者は単独で出題し直せる */
+  function renderSkip(){
+    const st = C.st, b = $("btn-mskip");
+    if (!st || st.phase !== "playing"){ b.hidden = true; return; }
+    b.hidden = false;
+    if (st.mode === "quiz" && st.quizmasterId === me()){
+      b.textContent = "⏭ 出題し直す";
+      b.title = "この問題をやめて別の場所を選び直します";
+      b.classList.remove("voted");
+      return;
+    }
+    const votes = (st.skipVotes || []).length;
+    const need  = st.skipNeeded || 1;
+    const mine  = (st.skipVotes || []).indexOf(me()) >= 0;
+    b.textContent = "⏭ スキップ" + (votes ? ` ${votes}/${need}` : "");
+    b.title = `この場所をスキップしたいときに押してください。回答者${need}人が押すと別の場所に変わります（もう一度押すと取り消し）`;
+    b.classList.toggle("voted", mine);
   }
 
   function ensureMaps(){
@@ -587,6 +658,11 @@ const Multi = (() => {
 
     $("btn-mguess").addEventListener("click", submitGuess);
     $("btn-mreset").addEventListener("click", () => Pano.resetView());
+    $("btn-mskip").addEventListener("click", () => {
+      if (!C.st || C.st.phase !== "playing") return;
+      if (isHost()) hOnSkip(me());
+      else Net.send({ t:"skip" });
+    });
     $("btn-pick-ok").addEventListener("click", confirmPick);
     $("btn-pick-redo").addEventListener("click", () => {
       C.pick = null; C.pickResolved = null;

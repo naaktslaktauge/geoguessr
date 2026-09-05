@@ -66,6 +66,8 @@ async function newGame(n, cfg){
   if (cfg.mode === "all") setSeg("rounds", String(cfg.rounds));
   else setSeg("laps", String(cfg.laps));
   setSeg("timeLimit", String(cfg.timeLimit || 120));
+  if (cfg.region)     setSeg("region", cfg.region);
+  if (cfg.difficulty) setSeg("difficulty", String(cfg.difficulty));
   await tick();
 }
 
@@ -713,6 +715,184 @@ async function sectionK(){
         "\n      前: " + s1 + "\n      後: " + el("pano").children[0].src);
 }
 
+
+/* ============================================================
+ * L. 多数決によるスキップ
+ * ============================================================ */
+function locKey(st){ return st.location.lat + "," + st.location.lng; }
+
+async function sectionL(){
+  say("");
+  say("━━━ L. 多数決によるスキップ ━━━");
+
+  /* --- L-1: 全員回答モード（3人 → 過半数は2票） --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState();
+  check("L1 必要票数は回答者3人の過半数=2", st.skipNeeded === 2, st.skipNeeded);
+  var first = locKey(st), firstRound = st.round;
+
+  guestSend(G[0], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L1 1票では場所が変わらない", locKey(st) === first, "変わってしまった");
+  check("L1 投票が全員に見える", (st.skipVotes || []).length === 1, JSON.stringify(st.skipVotes));
+  check("L1 フェーズは playing のまま", st.phase === "playing", st.phase);
+
+  guestSend(G[1], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L1 過半数に達すると別の場所に変わる", locKey(st) !== first, "変わらなかった");
+  check("★L1 ラウンド番号は進まない", st.round === firstRound, st.round + " / " + firstRound);
+  check("L1 スキップ後は票がリセットされる", (st.skipVotes || []).length === 0, JSON.stringify(st.skipVotes));
+  check("L1 スキップ後も playing", st.phase === "playing", st.phase);
+  var second = locKey(st);
+
+  /* --- L-2: 投票の取り消し --- */
+  guestSend(G[0], { t:"skip" }); await tick();
+  check("L2 1票入る", (latestState().skipVotes || []).length === 1);
+  guestSend(G[0], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L2 同じ人がもう一度押すと取り消せる", (st.skipVotes || []).length === 0,
+        JSON.stringify(st.skipVotes));
+  check("L2 取り消しても場所は変わらない", locKey(st) === second);
+
+  /* --- L-3: ホスト自身も1票を投じられる --- */
+  clickEl("btn-mskip"); await tick();
+  st = latestState();
+  check("L3 ホストの票も数えられる", (st.skipVotes || []).length === 1, JSON.stringify(st.skipVotes));
+  guestSend(G[0], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L3 ホスト＋ゲスト1人で成立する", locKey(st) !== second, "変わらなかった");
+
+  /* --- L-4: スキップした場所は出題し直されない --- */
+  var seen = [first, second, locKey(latestState())];
+  check("★L4 スキップした場所が再び出てこない",
+        new Set(seen).size === seen.length, JSON.stringify(seen));
+
+  /* --- L-5: ラウンドが進むと票はリセットされる --- */
+  st = latestState();
+  guestSend(G[0], { t:"skip" }); await tick();
+  check("L5 票が入っている", (latestState().skipVotes || []).length === 1);
+  await answerAll(latestState());
+  clickEl("btn-mnext"); await tick();
+  st = latestState();
+  check("★L5 次のラウンドでは票がリセットされている", (st.skipVotes || []).length === 0,
+        JSON.stringify(st.skipVotes));
+
+  /* --- L-6: 切断者は票数の母数から外れる（4人 → 3票、1人抜けて2票） --- */
+  await newGame(4, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  check("L6 回答者4人なら3票必要", st.skipNeeded === 3, st.skipNeeded);
+  G[2].close(); await tick();
+  st = latestState();
+  check("★L6 1人抜けると2票に下がる", st.skipNeeded === 2, st.skipNeeded);
+  first = locKey(st);
+  guestSend(G[0], { t:"skip" }); await tick();
+  guestSend(G[1], { t:"skip" }); await tick();
+  check("★L6 残った人数の過半数でスキップできる", locKey(latestState()) !== first);
+
+  /* --- L-7: 出題者ありモード --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var qmId = st.quizmasterId;
+  var pt = { lat:41.8902, lng:12.4922 };
+  if (qmId === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[qmId], { t:"picked", lat:pt.lat, lng:pt.lng });
+  }
+  await tick();
+  st = latestState();
+  check("L7 出題されてプレイ開始", st.phase === "playing", st.phase);
+  check("L7 出題者を除いた2人が回答者なので2票必要", st.skipNeeded === 2, st.skipNeeded);
+
+  // 出題者は単独で出題し直せる
+  if (qmId === st.hostId) clickEl("btn-mskip");
+  else guestSend(connById[qmId], { t:"skip" });
+  await tick();
+  st = latestState();
+  check("★L7 出題者は単独で出題し直せる", st.phase === "picking", st.phase);
+  check("L7 出題者は変わらない", st.quizmasterId === qmId, st.quizmasterId);
+  check("L7 ラウンド番号も変わらない", st.round === 1, st.round);
+
+  // 出題し直したあと、回答者の多数決でもやり直せる
+  if (qmId === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:35.6595, lng:139.7005 } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[qmId], { t:"picked", lat:35.6595, lng:139.7005 });
+  }
+  await tick();
+  st = latestState();
+  check("L7 再出題でプレイ再開", st.phase === "playing", st.phase);
+  var answerers = st.players.filter(function(p){ return p.id !== qmId; });
+  for (var i = 0; i < answerers.length; i++){
+    var a = answerers[i];
+    if (a.id === st.hostId) clickEl("btn-mskip");
+    else guestSend(connById[a.id], { t:"skip" });
+    await tick();
+  }
+  st = latestState();
+  check("★L7 回答者の多数決でも出題フェーズに戻せる", st.phase === "picking", st.phase);
+
+  /* --- L-8: 出題フェーズではスキップできない --- */
+  guestSend(G[0], { t:"skip" }); await tick();
+  check("★L8 出題フェーズ中のスキップは無視される",
+        latestState().phase === "picking", latestState().phase);
+
+  /* --- L-9: ソロのスキップ --- */
+  Net.close();
+  Pano.init(el("pano"));
+  S.settings.rounds = 3; S.settings.timeLimit = 300; S.settings.region = "world";
+  await startGame(); await tick();
+  var before = S.locs[0].name;
+  check("L9 ソロ: ラウンド1で開始", el("hud-round").textContent === "1 / 3", el("hud-round").textContent);
+  await skipRound(); await tick();
+  check("★L9 ソロ: スキップで別の場所に変わる", S.locs[0].name !== before,
+        before + " → " + S.locs[0].name);
+  check("★L9 ソロ: ラウンド番号は進まない", el("hud-round").textContent === "1 / 3",
+        el("hud-round").textContent);
+  check("L9 ソロ: 制限時間も引き直される", el("hud-timer").textContent === "5:00",
+        el("hud-timer").textContent);
+  var names = [before, S.locs[0].name];
+  await skipRound(); await tick();
+  names.push(S.locs[0].name);
+  check("★L9 ソロ: スキップした場所は再び出ない",
+        new Set(names).size === names.length, JSON.stringify(names));
+  check("L9 ソロ: スキップ後も回答できる", el("btn-guess").disabled === true);
+
+  /* --- L-10: ラウンド終了後のスキップは受け付けない --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  await answerAll(latestState());
+  st = latestState();
+  check("L10 ラウンドが締まっている", st.phase === "result", st.phase);
+  var doneLoc = locKey(st), doneRound = st.round;
+  guestSend(G[0], { t:"skip" }); await tick();
+  guestSend(G[1], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L10 結果表示中のスキップは無視される（ラウンドが巻き戻らない）",
+        st.phase === "result" && locKey(st) === doneLoc && st.round === doneRound,
+        st.phase + " / round=" + st.round);
+
+  /* --- L-11: 候補が少ない条件でも出題が重複しない --- */
+  // オセアニア×やさしいはちょうど10地点。10ラウンドで全部を1回ずつ使うことになる
+  await newGame(2, { mode:"all", rounds:10, timeLimit:600, region:"oceania", difficulty:1 });
+  clickEl("btn-lobby-start"); await tick();
+  var used = [], guard = 0;
+  while (guard++ < 80){
+    st = latestState();
+    if (st.phase === "final") break;
+    if (st.phase === "playing"){ used.push(locKey(st)); await answerAll(st); }
+    else if (st.phase === "result"){ clickEl("btn-mnext"); await tick(); }
+    else break;
+  }
+  check("L11 10ラウンド消化した", used.length === 10, used.length);
+  check("★L11 候補が10件しかなくても出題が重複しない",
+        new Set(used).size === used.length,
+        (used.length - new Set(used).size) + "件が重複");
+}
+
 async function main(){
   Multi.init();
 
@@ -930,6 +1110,7 @@ async function main(){
   await sectionI();
   await sectionJ();
   await sectionK();
+  await sectionL();
 
   say("");
   say("════════════════════════════════");
