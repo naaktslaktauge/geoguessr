@@ -16,6 +16,7 @@ const Pano = (() => {
   let svService = null;
   let startPov = null;
   let startPanoId = null;
+  let last = null;              // 直近に読み込んだ本編パノラマ（戻るボタン用）
 
   function init(el){ defaultEl = el; }
   function setApiKey(k){
@@ -110,7 +111,10 @@ const Pano = (() => {
           pv.addListener("zoom_changed", () => { if (pv.getZoom() !== 0) pv.setZoom(0); });
         }
 
-        if (!opts.preview){ panorama = pv; startPanoId = panoId; startPov = pov; }
+        if (!opts.preview){
+          panorama = pv; startPanoId = panoId; startPov = pov;
+          last = { el, loc, rules, api:true };
+        }
         return { api:true, location:snapped };
       }catch(err){
         console.warn("[Pano] API モード失敗 → 埋め込みモードへ:", err.message);
@@ -119,29 +123,43 @@ const Pano = (() => {
     }
 
     /* ---------- 埋め込みモード（キー不要） ---------- */
-    const heading = Math.floor(Math.random() * 360);
+    // heading を指定できるようにしておくと、同じ向きで作り直して開始地点に戻せる
+    const heading = (opts.heading != null) ? opts.heading : Math.floor(Math.random() * 360);
     const iframe = document.createElement("iframe");
     iframe.src = "https://www.google.com/maps?q=&layer=c&cbll=" +
                  loc.lat + "," + loc.lng + "&cbp=11," + heading + ",0,0,0&output=svembed";
     iframe.allow = "accelerometer; gyroscope";
     iframe.referrerPolicy = "no-referrer-when-downgrade";
     el.appendChild(iframe);
+    if (!opts.preview) last = { el, loc, rules, heading, api:false };
     return { api:false, location:{ lat:loc.lat, lng:loc.lng } };
   }
 
+  /** 開始地点・開始方向に戻す。API モードでも埋め込みモードでも動く */
   function resetView(){
     if (panorama && startPanoId){
       panorama.setPano(startPanoId);
       panorama.setPov(startPov);
       panorama.setZoom(0);
+      return true;
     }
+    if (last && !last.api){
+      // 埋め込みモードは操作できないので、同じ地点・同じ向きで作り直す
+      load(last.loc, last.rules, { el:last.el, heading:last.heading });
+      return true;
+    }
+    return false;
   }
+
+  /** 戻れる状態か（パノラマが読み込まれているか） */
+  function canReset(){ return !!(panorama && startPanoId) || !!(last && !last.api); }
 
   function clear(el){
     const target = el || defaultEl;
     if (target) target.innerHTML = "";
     if (!el) panorama = null;
+    if (last && (!el || last.el === target)) last = null;
   }
 
-  return { init, setApiKey, usingApi, load, resetView, clear };
+  return { init, setApiKey, usingApi, load, resetView, canReset, clear };
 })();

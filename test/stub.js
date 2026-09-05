@@ -38,6 +38,7 @@ function FakeEl(id){
     setProperty:    function(k, v){ this._p[k] = v; },
     getPropertyValue:function(k){ return this._p[k]; }
   };
+  this.children = [];
   this.textContent = ""; this.innerHTML = ""; this.value = "";
   this.hidden = false; this.disabled = false; this.href = "";
   var self = this;
@@ -49,7 +50,13 @@ function FakeEl(id){
   };
 }
 FakeEl.prototype.addEventListener = function(e, cb){ (this._ev[e] = this._ev[e] || []).push(cb); };
-FakeEl.prototype.appendChild = function(){};
+// 生成された要素（iframe など）を検証できるよう保持する
+FakeEl.prototype.appendChild = function(c){ this.children.push(c); return c; };
+Object.defineProperty(FakeEl.prototype, "innerHTML", {
+  get: function(){ return this._html || ""; },
+  set: function(v){ this._html = v; if (v === "") this.children = []; },
+  configurable: true
+});
 FakeEl.prototype.querySelectorAll = function(){ return []; };
 FakeEl.prototype.closest = function(){ return this; };
 FakeEl.prototype.fire = function(e, arg){ (this._ev[e] || []).forEach(function(f){ f(arg || {}); }); };

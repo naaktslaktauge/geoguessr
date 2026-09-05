@@ -106,7 +106,7 @@ async function loadRound(){
 
   await Pano.load(S.locs[S.idx], S.rules);
   $("pano-loading").hidden = true;
-  $("btn-reset-view").style.display = Pano.usingApi() ? "" : "none";
+  $("btn-reset-view").hidden = !Pano.canReset();
 
   startTimer();
 }

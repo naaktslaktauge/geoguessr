@@ -644,6 +644,73 @@ async function sectionJ(){
         st.phase + " / " + st.remainMs);
 }
 
+
+/* ============================================================
+ * K. 開始地点に戻るボタン
+ * ============================================================ */
+async function sectionK(){
+  say("");
+  say("━━━ K. 開始地点に戻るボタン ━━━");
+
+  /* --- K-1: 対戦（回答者）で戻れる --- */
+  await newGame(3, { mode:"all", rounds:3, timeLimit:120 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState();
+  var panoEl = el("m-pano");
+
+  check("K1 ストリートビューが読み込まれている", panoEl.children.length === 1, panoEl.children.length);
+  var src1 = panoEl.children[0].src;
+  check("K1 出題地点の座標が使われている",
+        src1.indexOf(st.location.lat + "," + st.location.lng) >= 0, src1);
+  check("K1 戻れる状態と判定される", Pano.canReset() === true);
+  check("★K1 回答中は戻るボタンが表示される", el("btn-mreset").hidden === false, el("btn-mreset").hidden);
+
+  var ok = Pano.resetView();
+  await tick();
+  check("★K1 戻るボタンが機能する（APIキー無しでも）", ok === true);
+  check("K1 パノラマが作り直されている", panoEl.children.length === 1, panoEl.children.length);
+  check("★K1 同じ地点・同じ向きに戻る（向きがランダム化されない）",
+        panoEl.children[0].src === src1,
+        "\n      前: " + src1 + "\n      後: " + panoEl.children[0].src);
+
+  // 何度押しても同じ地点に戻る
+  Pano.resetView(); await tick();
+  Pano.resetView(); await tick();
+  check("K1 繰り返し押しても同じ地点に戻る", panoEl.children[0].src === src1);
+
+  /* --- K-2: 出題者ありモードでの表示条件 --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:120 });
+  clickEl("btn-lobby-start"); await tick();
+  check("★K2 出題フェーズでは戻るボタンを出さない", el("btn-mreset").hidden === true, el("btn-mreset").hidden);
+
+  st = latestState();
+  var pt = { lat:41.8902, lng:12.4922 };
+  if (st.quizmasterId === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[st.quizmasterId], { t:"picked", lat:pt.lat, lng:pt.lng });
+  }
+  await tick();
+  check("★K2 出題後は戻るボタンが出る", el("btn-mreset").hidden === false, el("btn-mreset").hidden);
+  check("K2 出題された座標が使われている",
+        el("m-pano").children[0].src.indexOf(pt.lat + "," + pt.lng) >= 0,
+        el("m-pano").children[0].src);
+
+  /* --- K-3: ソロでも APIキー無しで使える --- */
+  Net.close();
+  Pano.init(el("pano"));
+  S.settings.rounds = 2; S.settings.timeLimit = 300; S.settings.region = "world";
+  await startGame(); await tick();
+  check("★K3 ソロでもAPIキー無しで戻るボタンが出る", el("btn-reset-view").hidden === false,
+        el("btn-reset-view").hidden);
+  var s1 = el("pano").children[0].src;
+  check("K3 ソロでも出題地点の座標が使われている",
+        s1.indexOf(S.locs[0].lat + "," + S.locs[0].lng) >= 0, s1);
+  Pano.resetView(); await tick();
+  check("★K3 ソロでも同じ地点・同じ向きに戻る", el("pano").children[0].src === s1,
+        "\n      前: " + s1 + "\n      後: " + el("pano").children[0].src);
+}
+
 async function main(){
   Multi.init();
 
@@ -860,6 +927,7 @@ async function main(){
   await sectionH();
   await sectionI();
   await sectionJ();
+  await sectionK();
 
   say("");
   say("════════════════════════════════");

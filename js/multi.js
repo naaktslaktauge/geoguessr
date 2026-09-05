@@ -294,6 +294,7 @@ const Multi = (() => {
         C.maps.pick.refresh(60);
       }
       Pano.clear($("m-pano"));
+      $("btn-mreset").hidden = true;
       return;
     }
 
@@ -313,8 +314,12 @@ const Multi = (() => {
       C.maps.guess.reset();
       C.maps.guess.refresh(60);
       $("m-pano-loading").hidden = false;
+      $("btn-mreset").hidden = true;
       Pano.load(st.location, { move:true, pan:true, zoom:true }, { el:$("m-pano") })
-          .then(() => { $("m-pano-loading").hidden = true; });
+          .then(() => {
+            $("m-pano-loading").hidden = true;
+            $("btn-mreset").hidden = !Pano.canReset();
+          });
     }
     if (C.guess || answeredByMe(st)){
       const b = $("btn-mguess");
@@ -581,6 +586,7 @@ const Multi = (() => {
     $("btn-lobby-start").addEventListener("click", () => { if (isHost()) hStartGame(); });
 
     $("btn-mguess").addEventListener("click", submitGuess);
+    $("btn-mreset").addEventListener("click", () => Pano.resetView());
     $("btn-pick-ok").addEventListener("click", confirmPick);
     $("btn-pick-redo").addEventListener("click", () => {
       C.pick = null; C.pickResolved = null;
