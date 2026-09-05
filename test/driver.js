@@ -663,6 +663,8 @@ async function sectionK(){
   check("K1 出題地点の座標が使われている",
         src1.indexOf(st.location.lat + "," + st.location.lng) >= 0, src1);
   check("K1 戻れる状態と判定される", Pano.canReset() === true);
+  check("★K1 地名ラベルを隠すための目印クラスが付いている",
+        panoEl.children[0].className === "sv-embed", panoEl.children[0].className);
   check("★K1 回答中は戻るボタンが表示される", el("btn-mreset").hidden === false, el("btn-mreset").hidden);
 
   var ok = Pano.resetView();

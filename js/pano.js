@@ -126,6 +126,8 @@ const Pano = (() => {
     // heading を指定できるようにしておくと、同じ向きで作り直して開始地点に戻せる
     const heading = (opts.heading != null) ? opts.heading : Math.floor(Math.random() * 360);
     const iframe = document.createElement("iframe");
+    // 左上に出る地名ラベルを CSS で切り落とすための目印
+    iframe.className = "sv-embed";
     iframe.src = "https://www.google.com/maps?q=&layer=c&cbll=" +
                  loc.lat + "," + loc.lng + "&cbp=11," + heading + ",0,0,0&output=svembed";
     iframe.allow = "accelerometer; gyroscope";
