@@ -90,7 +90,8 @@ function LMap(){
     fitBounds: function(){}, panBy: function(){}
   };
 }
-var __chain = { addTo:function(){ return __chain; }, bindTooltip:function(){ return __chain; }, setLatLng:function(){} };
+var __chain = { addTo:function(){ return __chain; }, bindTooltip:function(){ return __chain; },
+                setLatLng:function(){}, on:function(){ return __chain; } };
 var L = {
   map: function(){ return LMap(); },
   tileLayer: function(){ return __chain; },

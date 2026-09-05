@@ -12,6 +12,10 @@
   --shadow:0 10px 30px rgba(0,0,0,.45);
 }
 *{box-sizing:border-box}
+/* hidden 属性を常に優先させる。
+   author の display 指定は UA の [hidden]{display:none} に勝ってしまうため、
+   これが無いと .pick-wait などが透明な層として残りクリックを奪う。 */
+[hidden]{display:none !important}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--text);

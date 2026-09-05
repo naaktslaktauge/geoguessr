@@ -1,8 +1,32 @@
 /* ============================================================
  * Leaflet 地図モジュール（API キー不要）
  * ============================================================ */
-const TILE_URL  = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const TILE_ATTR = '&copy; OpenStreetMap &copy; CARTO';
+/* 地図タイル
+   CARTO は API キー必須になり透かしが入るようになったため使用しない。
+   主: Esri World Street Map（キー不要・英日併記でラベルが読みやすい）
+   副: OpenStreetMap 標準（Esri が落ちた場合の自動フォールバック） */
+const TILE_PRIMARY = {
+  url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+  attr: "Tiles &copy; Esri"
+};
+const TILE_FALLBACK = {
+  url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  attr: "&copy; OpenStreetMap contributors"
+};
+
+/** タイルを貼る。主タイルが繰り返し失敗したら自動で副タイルへ切り替える */
+function addTiles(map){
+  const primary = L.tileLayer(TILE_PRIMARY.url, { attribution:TILE_PRIMARY.attr, maxZoom:18 });
+  let errors = 0, swapped = false;
+  primary.on("tileerror", () => {
+    if (swapped || ++errors < 6) return;
+    swapped = true;
+    console.warn("[maps] 主タイルの取得に失敗 → OpenStreetMap に切り替えます");
+    map.removeLayer(primary);
+    L.tileLayer(TILE_FALLBACK.url, { attribution:TILE_FALLBACK.attr, maxZoom:18 }).addTo(map);
+  });
+  primary.addTo(map);
+}
 const COLOR_GUESS  = "#3b82f6";
 const COLOR_ACTUAL = "#6cc24a";
 
@@ -38,7 +62,7 @@ function createPickerMap(elId, onPick, color){
     if (map) return map;
     map = L.map(elId, { worldCopyJump:true, zoomControl:true, attributionControl:false })
            .setView([20, 0], 1);
-    L.tileLayer(TILE_URL, { attribution:TILE_ATTR, maxZoom:18 }).addTo(map);
+    addTiles(map);
     map.on("click", e => {
       const p = { lat:e.latlng.lat, lng:normLng(e.latlng.lng) };
       if (marker) marker.setLatLng(e.latlng);
@@ -69,7 +93,7 @@ function createResultMap(elId){
   function ensure(){
     if (!map){
       map = L.map(elId, { zoomControl:true, attributionControl:false }).setView([20, 0], 2);
-      L.tileLayer(TILE_URL, { attribution:TILE_ATTR, maxZoom:18 }).addTo(map);
+      addTiles(map);
     }
     return map;
   }
