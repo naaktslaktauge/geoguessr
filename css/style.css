@@ -125,9 +125,11 @@ button{font-family:inherit}
   backdrop-filter:blur(6px);transition:.15s;padding:0;
   display:inline-flex;align-items:center;justify-content:center;line-height:1;
 }
-/* ⟲ と ⏭ は字そのものが小さく描画されるので、✕ と見た目が揃うよう大きくする */
-#btn-reset-view, #btn-mreset{font-size:23px}
-#btn-skip{font-size:19px}
+/* アイコンは SVG。字体によって大きさや中心がずれないようにするため */
+.icon-btn svg, .exit-btn svg{
+  display:block;width:21px;height:21px;
+  fill:currentColor;stroke:none;
+}
 .icon-btn:hover{background:#1d242e;border-color:#465061}
 
 /* ミニマップ */
@@ -334,6 +336,23 @@ button{font-family:inherit}
 .leaflet-tooltip::before{display:none}
 .tt-actual{border-color:var(--accent);color:var(--accent)}
 
+
+/* ============================================================
+   ツールチップ（標準の title は表示まで時間がかかるため自前で出す）
+   ============================================================ */
+[data-tip]{position:relative}
+[data-tip]::after{
+  content:attr(data-tip);
+  position:absolute;top:calc(100% + 8px);right:0;
+  background:rgba(14,17,22,.96);border:1px solid var(--line);
+  color:var(--text);font-size:12px;font-weight:600;letter-spacing:.5px;
+  padding:6px 11px;border-radius:8px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.4);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s;
+  z-index:1150;
+}
+[data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;visibility:visible}
 
 /* ============================================================
    常時表示の退出ボタン / 確認ダイアログ

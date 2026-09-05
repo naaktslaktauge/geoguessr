@@ -393,16 +393,16 @@ const Multi = (() => {
     if (!st || st.phase !== "playing"){ b.hidden = true; return; }
     b.hidden = false;
     if (st.mode === "quiz" && st.quizmasterId === me()){
-      b.textContent = "⏭ 出題し直す";
-      b.title = "この問題をやめて別の場所を選び直します";
+      b.textContent = "出題し直す";
+      b.dataset.tip = "出題し直す";
       b.classList.remove("voted");
       return;
     }
     const votes = (st.skipVotes || []).length;
     const need  = st.skipNeeded || 1;
     const mine  = (st.skipVotes || []).indexOf(me()) >= 0;
-    b.textContent = "⏭ スキップ" + (votes ? ` ${votes}/${need}` : "");
-    b.title = `この場所をスキップしたいときに押してください。回答者${need}人が押すと別の場所に変わります（もう一度押すと取り消し）`;
+    b.textContent = "スキップ" + (votes ? ` ${votes}/${need}` : "");
+    b.dataset.tip = mine ? "スキップ希望を取り消す" : `スキップする（回答者${need}人で成立）`;
     b.classList.toggle("voted", mine);
   }
 
