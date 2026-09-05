@@ -6,8 +6,12 @@
  * ============================================================ */
 const Fx = (() => {
   const KEY_SOUND = "gg_sound";
-  const SHOW_MS = 1000;           // 表示時間
+  const SHOW_MS   = 1000;         // 画面に文字を出す時間
+  const CLIP_URL  = "rokkonshojo.mp3";
+  const CLIP_SEC  = 10;           // 音を流す長さ
+  const FADE_SEC  = 1.5;          // 終わりのフェードアウト
   let queue = [], showing = false, ctx = null, hideTimer = null;
+  let clip = null, clipLoading = false, playing = null;
 
   /* ---------- 音のオン/オフ（端末ごとに保存） ---------- */
   function soundOn(){
@@ -42,7 +46,10 @@ const Fx = (() => {
       s.connect(c.destination);
       s.start(0);
     } catch(e){}
-    if (c.state === "running") removeUnlockListeners();
+    if (c.state === "running"){
+      removeUnlockListeners();
+      loadClip();                     // 鳴らせるようになってから裏で読み込む
+    }
   }
 
   const UNLOCK_EVENTS = ["pointerdown", "touchend", "click", "keydown"];
@@ -51,6 +58,47 @@ const Fx = (() => {
   }
   function removeUnlockListeners(){
     UNLOCK_EVENTS.forEach(e => document.removeEventListener(e, unlock, true));
+  }
+
+  /* ---------- 音源の読み込み ----------
+     2MB あるので起動時には読まず、最初の操作のあとに裏で取りに行く。
+     間に合わなかった場合や読めなかった場合は合成音で代用する。 */
+  function loadClip(){
+    if (clip || clipLoading) return;
+    const c = initAudio();
+    if (!c || typeof fetch !== "function") return;
+    clipLoading = true;
+    fetch(CLIP_URL)
+      .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))
+      .then(a => c.decodeAudioData(a))
+      .then(b => { clip = b; })
+      .catch(e => { clipLoading = false; console.warn("[fx] 音源を読み込めません:", e.message); });
+  }
+
+  function stopClip(){
+    if (!playing) return;
+    try { playing.stop(); } catch(e){}
+    playing = null;
+  }
+
+  /** 音源を先頭から CLIP_SEC 秒だけ流し、終わりをフェードアウトする */
+  function playClip(){
+    if (!clip) return false;
+    const c = initAudio();
+    if (!c || c.state !== "running") return false;
+    stopClip();                       // 続けて鳴るときは前の音を止める
+    const t0 = c.currentTime;
+    const src = c.createBufferSource();
+    const g = c.createGain();
+    src.buffer = clip;
+    g.gain.setValueAtTime(0.9, t0);
+    g.gain.setValueAtTime(0.9, t0 + Math.max(0, CLIP_SEC - FADE_SEC));
+    g.gain.linearRampToValueAtTime(0.0001, t0 + CLIP_SEC);
+    src.connect(g).connect(c.destination);
+    src.start(t0, 0, CLIP_SEC);
+    playing = src;
+    src.onended = () => { if (playing === src) playing = null; };
+    return true;
   }
 
   /**
@@ -108,7 +156,8 @@ const Fx = (() => {
     box.classList.remove("play");
     void box.offsetWidth;          // アニメーションを頭から流し直す
     box.classList.add("play");
-    chime();
+    // 音源があればそれを流す。無ければ合成音で代用する
+    if (!(soundOn() && playClip())) chime();
     hideTimer = setTimeout(() => {
       hideTimer = null;
       box.classList.remove("play");
@@ -138,5 +187,8 @@ const Fx = (() => {
     if (test) test.addEventListener("click", () => { unlock(); announce("テスト"); });
   }
 
-  return { init, announce, chime, clear, soundOn, setSound };
+  /** ゲームから抜けるときなど、鳴っている音も止めたいとき */
+  function stopAll(){ clear(); stopClip(); }
+
+  return { init, announce, chime, clear, stopAll, soundOn, setSound };
 })();

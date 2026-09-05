@@ -97,7 +97,7 @@ const Multi = (() => {
 
   function leave(){
     stopTick();
-    Fx.clear();
+    Fx.stopAll();                    // 鳴っている音も止める
     if (H && H.timer) clearTimeout(H.timer);
     H = null; C.st = null; C.joined = false;
     Net.close();
