@@ -292,6 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initSettingsUI();
   initApiKeyUI();
   initModal();
+  Fx.init();
   initEvents();
   Multi.init();
   initMapSizeControls(() => { GuessMap.refresh(); Multi.refreshMap(); });

@@ -1191,6 +1191,74 @@ async function sectionM(){
         "P3:" + resultOf(st,"P3").bonus + " P2:" + resultOf(st,"P2").bonus);
 }
 
+
+/* ============================================================
+ * N. 回答アナウンス（全画面演出）
+ * ============================================================ */
+async function sectionN(){
+  say("");
+  say("━━━ N. 回答アナウンス ━━━");
+  var box = el("fx-announce"), nm = el("fx-name");
+
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState(), loc = st.location;
+  check("N 開始時は表示されていない", box.hidden === true, box.hidden);
+
+  /* --- 相手が回答したら出る --- */
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
+  check("★N 相手の回答で全画面表示が出る", box.hidden === false, box.hidden);
+  check("★N 回答した人の名前が出る", nm.textContent === "P2", nm.textContent);
+  check("N アニメーション用のクラスが付く", box.classList.contains("play"));
+
+  runTimers(2000);                               // 演出の1秒だけ進める
+  check("★N 1秒で消える", box.hidden === true, box.hidden);
+  check("N クラスも外れる", box.classList.contains("play") === false);
+
+  /* --- 自分の回答では出ない --- */
+  nm.textContent = "（変化なし）";
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,1).lat, lng:nearby(loc,1).lng } });
+  clickEl("btn-mguess"); await tick();
+  check("★N 自分の回答では出ない", nm.textContent === "（変化なし）" && box.hidden === true,
+        nm.textContent + " / hidden=" + box.hidden);
+
+  /* --- 同じ人の再配信では二度出ない --- */
+  guestSend(G[1], { t:"guess", lat:nearby(loc,2).lat, lng:nearby(loc,2).lng }); await tick();
+  check("★N 次に回答した人の名前に変わる", nm.textContent === "P3", nm.textContent);
+
+  /* --- ラウンドが終わったら消える --- */
+  st = latestState();
+  check("N 全員回答でラウンドが終わった", st.phase === "result", st.phase);
+  check("★N 結果画面では消えている", box.hidden === true, box.hidden);
+
+  /* --- 出題者ありモードでも出る --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var qm3 = st.quizmasterId, pt3 = { lat:41.8902, lng:12.4922 };
+  if (qm3 === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt3.lat, lng:pt3.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[qm3], { t:"picked", lat:pt3.lat, lng:pt3.lng });
+  }
+  await tick();
+  st = latestState();
+  var other = st.players.filter(function(p){ return p.id !== qm3 && p.id !== st.hostId; })[0];
+  nm.textContent = "";
+  guestSend(connById[other.id], { t:"guess", lat:41.89, lng:12.49 }); await tick();
+  check("★N 出題者ありモードでも出る", nm.textContent === other.name && box.hidden === false,
+        nm.textContent + " / hidden=" + box.hidden);
+  runTimers(2000);
+
+  /* --- 効果音のオンオフが保存される --- */
+  Fx.setSound(false);
+  check("★N 効果音を切ると保存される", Fx.soundOn() === false && localStorage.getItem("gg_sound") === "off",
+        String(localStorage.getItem("gg_sound")));
+  Fx.setSound(true);
+  check("N 戻すとオンになる", Fx.soundOn() === true);
+  check("N 音が鳴らせない環境でも落ちない", (function(){ try { Fx.chime(); return true; } catch(e){ return false; } })());
+}
+
 async function main(){
   Multi.init();
   initEvents();          // ソロ側のボタン配線も本番と同じように登録する
@@ -1411,6 +1479,7 @@ async function main(){
   await sectionK();
   await sectionL();
   await sectionM();
+  await sectionN();
 
   say("");
   say("════════════════════════════════");

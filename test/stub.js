@@ -23,11 +23,24 @@ function advanceClock(ms){ __now += ms; }
 
 /* --- タイマー（手動実行） --- */
 var __timers = [], __intervals = [], __tid = 0;
-var setTimeout  = function(fn, ms){ __timers.push({ id:++__tid, fn:fn }); return __tid; };
+var setTimeout  = function(fn, ms){ __timers.push({ id:++__tid, fn:fn, ms:ms || 0 }); return __tid; };
 var setInterval = function(fn, ms){ __intervals.push({ id:++__tid, fn:fn }); return __tid; };
 var clearTimeout  = function(id){ __timers    = __timers.filter(function(t){ return t.id !== id; }); };
 var clearInterval = function(id){ __intervals = __intervals.filter(function(t){ return t.id !== id; }); };
-function runTimers(){ var q = __timers; __timers = []; q.forEach(function(t){ t.fn(); }); }
+/**
+ * 溜まっているタイマーを実行する。
+ * maxMs を渡すとその待ち時間以下のものだけを実行する。
+ * 何も指定しないと「10分後のラウンド終了」まで一緒に発火してしまい、
+ * 短い演出だけ進めたい場面で意図しない結果になる。
+ */
+function runTimers(maxMs){
+  var fire = [], keep = [];
+  __timers.forEach(function(t){
+    (maxMs == null || t.ms <= maxMs ? fire : keep).push(t);
+  });
+  __timers = keep;
+  fire.forEach(function(t){ t.fn(); });
+}
 function runIntervals(){ __intervals.slice().forEach(function(t){ t.fn(); }); }
 async function tick(n){ for (var i = 0; i < (n || 12); i++) await Promise.resolve(); }
 

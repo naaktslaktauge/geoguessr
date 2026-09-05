@@ -97,6 +97,7 @@ const Multi = (() => {
 
   function leave(){
     stopTick();
+    Fx.clear();
     if (H && H.timer) clearTimeout(H.timer);
     H = null; C.st = null; C.joined = false;
     Net.close();
@@ -368,6 +369,16 @@ const Multi = (() => {
                        prev.location.lng !== st.location.lng);
     const needReload = changedRound || movedLoc;
 
+    // 相手が回答した瞬間を全画面で知らせる（自分の回答では出さない）
+    if (st.phase === "playing" && prev && prev.phase === "playing" && prev.round === st.round){
+      const before = prev.answered || [];
+      (st.answered || []).forEach(id => {
+        if (before.indexOf(id) >= 0 || id === me()) return;
+        const p = st.players.find(x => x.id === id);
+        if (p) Fx.announce(p.name);
+      });
+    }
+
     if (st.phase === "lobby"){ renderLobby(); return; }
     if (st.phase === "final"){ renderFinal(); return; }
     if (st.phase === "result"){ renderResult(); return; }
@@ -601,6 +612,7 @@ const Multi = (() => {
   function renderResult(){
     const st = C.st;
     stopTick();
+    Fx.clear();                      // ラウンドをまたいで持ち越さない
     showScreen("screen-mround");
     ensureMaps();
 
