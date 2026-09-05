@@ -142,11 +142,21 @@ button{font-family:inherit}
   transition:width .18s ease,height .18s ease,opacity .18s ease;
   overflow:hidden;
 }
-.map-panel:hover,.map-panel.pinned{
+.map-panel.pinned{
   width:min(var(--map-w), 92vw);
   height:min(var(--map-h), 82vh);
   opacity:1;
 }
+/* タッチ端末ではホバーが効かない（押しっぱなし扱いになる）ので、
+   ホバーで開く挙動はマウスがある環境だけに限定する */
+@media (hover:hover){
+  .map-panel:hover{
+    width:min(var(--map-w), 92vw);
+    height:min(var(--map-h), 82vh);
+    opacity:1;
+  }
+}
+.map-open{display:none}
 .guess-map{position:absolute;inset:6px 6px 52px 6px;border-radius:8px;overflow:hidden;background:#1a222c}
 .guess-btn{position:absolute;left:6px;right:6px;bottom:6px;padding:11px;font-size:14px}
 /* 地図パネルの操作ボタン群（サイズ変更・ピン留め） */
@@ -384,3 +394,144 @@ button{font-family:inherit}
 .modal-actions .btn{flex:1;padding:12px}
 .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
 .btn.danger:hover{background:#c93b3f;border-color:#c93b3f}
+
+/* ============================================================
+   スマートフォン向けレイアウト（横幅 640px 以下）
+   ・操作ボタンは片手で届く下側へ寄せる
+   ・地図は普段たたんでおき、タップで大きく開く
+   ============================================================ */
+@media (max-width: 640px){
+
+  /* ---- 画面まわり ---- */
+  body{overscroll-behavior:none}
+  .home-wrap{padding:24px 14px 40px}
+  .panel{padding:16px;border-radius:14px}
+  .logo{font-size:34px}
+  .logo.sm{font-size:23px}
+
+  /* 設定ボタンは押しやすい高さに。エリアのように数が多いものは2段に折り返す */
+  .seg button{padding:11px 5px;font-size:12px;min-width:0}
+  .seg.wrap button{flex:1 1 calc(25% - 5px);min-width:calc(25% - 5px)}
+  .field > label{font-size:12px}
+  .btn{padding:12px 16px}
+  .btn.big{padding:16px;font-size:16px}
+  .code-value{font-size:25px;letter-spacing:5px}
+  .code-box{padding:13px;gap:9px}
+  .menu-btn{padding:15px 16px}
+  .menu-ico{font-size:26px}
+
+  /* ---- ゲーム画面の上部 ---- */
+  .hud{top:calc(8px + env(safe-area-inset-top));left:10px;gap:6px;flex-wrap:wrap;max-width:calc(100vw - 76px)}
+  .hud-box{padding:5px 10px;min-width:0;border-radius:9px}
+  .hud-label{font-size:9px;letter-spacing:0}
+  .hud-value{font-size:15px}
+  .hud-value.sm{font-size:11px}
+
+  .exit-btn{top:calc(8px + env(safe-area-inset-top));right:10px;width:42px;height:42px}
+
+  /* 対戦の参加者一覧は上部右に独立して置く（HUD と重ならないように） */
+  #m-players{
+    position:fixed;top:calc(58px + env(safe-area-inset-top));right:10px;
+    min-width:0;width:max-content;max-width:calc(100vw - 20px);padding:6px;
+  }
+  .mp-row{font-size:11px;gap:6px;padding:3px 5px}
+  .mp-name{max-width:34vw}
+  .mp-score{min-width:38px}
+  .mp-mark{min-width:16px}
+
+  /* ---- 操作ボタンは下側へ（片手で届く位置） ---- */
+  .hud-right{
+    top:auto;right:auto;
+    left:calc(10px + env(safe-area-inset-left));
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    gap:8px;align-items:center;
+  }
+  .icon-btn{width:42px;height:42px}
+  .icon-btn svg, .exit-btn svg{width:22px;height:22px}
+  .skip-btn{height:42px;font-size:12px;padding:0 12px}
+
+  /* 出題者バナーは上部で折り返す */
+  .qm-banner{
+    top:calc(8px + env(safe-area-inset-top));left:10px;right:60px;
+    transform:none;max-width:none;white-space:normal;font-size:11px;padding:7px 10px;
+  }
+
+  /* ---- 出題フェーズ ---- */
+  .pick-head{padding:10px 54px;font-size:12px}
+  .pick-card{
+    left:8px;right:8px;bottom:8px;width:auto;padding:10px;
+  }
+  .pick-pano{height:150px}
+  .pick-info{padding:8px 2px 6px}
+  .pick-status{font-size:12px}
+  .pick-actions .btn{padding:12px 8px;font-size:13px}
+
+  /* ---- 結果画面 ---- */
+  .result-card{
+    left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));
+    width:auto;transform:none;padding:15px 14px;
+  }
+  .result-card.wide{width:auto}
+  .result-place{font-size:15px}
+  .result-score{font-size:26px}
+  .result-actions{gap:8px}
+  .result-actions .btn{padding:12px 6px;font-size:13px}
+  .mres-row{padding:7px 10px;font-size:13px;gap:7px}
+  .mr-dist{min-width:62px;font-size:11px}
+  .mr-score{min-width:56px}
+
+  /* ---- 最終結果 ---- */
+  .final-wrap{padding:30px 14px}
+  .final-total{font-size:44px}
+  .final-list li{padding:10px 12px;font-size:13px}
+
+  /* ---- ダイアログ ---- */
+  .modal-box{padding:19px}
+  .modal-actions .btn{padding:13px 8px}
+}
+
+/* タッチ端末ではツールチップが押しっぱなしで残るので出さない */
+@media (hover: none){
+  [data-tip]::after{display:none}
+}
+
+/* ============================================================
+   タッチ端末の地図（横向きスマホやタブレットも含む）
+   ホバーで開けないので、たたんだ状態＋タップで開く導線にする
+   ============================================================ */
+@media (max-width: 640px), (hover: none){
+  .map-panel{
+    right:calc(10px + env(safe-area-inset-right));
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    width:auto;height:auto;padding:0;opacity:1;
+    background:transparent;border:0;box-shadow:none;
+  }
+  .map-panel .map-tools,
+  .map-panel .guess-map,
+  .map-panel .guess-btn{display:none}
+  .map-panel .map-open{
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    height:42px;padding:0 16px;border-radius:11px;
+    border:1px solid var(--accent);background:rgba(14,17,22,.92);
+    color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;
+    backdrop-filter:blur(6px);
+  }
+  .map-panel.pinned{
+    left:8px;right:8px;width:auto;
+    bottom:calc(8px + env(safe-area-inset-bottom));
+    height:min(62vh, 520px);padding:0 0 54px;
+    background:rgba(14,17,22,.96);border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .map-panel.pinned .map-open{display:none}
+  .map-panel.pinned .map-tools{display:flex}
+  .map-panel.pinned .guess-map{display:block;inset:6px 6px 54px 6px}
+  .map-panel.pinned .guess-btn{display:block;padding:13px;font-size:14px}
+  .map-tools button{width:34px;height:34px}
+}
+
+/* 横向きのスマホは高さが足りないので地図を控えめに */
+@media (max-width: 900px) and (max-height: 460px){
+  .map-panel.pinned{height:min(78vh, 300px)}
+  .pick-pano{height:110px}
+}

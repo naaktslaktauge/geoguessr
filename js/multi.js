@@ -687,6 +687,11 @@ const Multi = (() => {
     $("btn-mfin-leave").addEventListener("click", leave);
 
     const panel = $("map-panel-m");
+    $("btn-mmap-open").addEventListener("click", e => {  // スマホ用：たたんだ地図を開く
+      e.stopPropagation();
+      panel.classList.add("pinned");
+      if (C.maps.guess) C.maps.guess.refresh();
+    });
     $("btn-mpin").addEventListener("click", e => {
       e.stopPropagation();
       panel.classList.toggle("pinned");

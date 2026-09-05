@@ -257,6 +257,11 @@ function initEvents(){
   });
 
   const panel = $("map-panel");
+  $("btn-map-open").addEventListener("click", e => {   // スマホ用：たたんだ地図を開く
+    e.stopPropagation();
+    panel.classList.add("pinned");
+    GuessMap.refresh();
+  });
   $("btn-pin").addEventListener("click", e => {
     e.stopPropagation();
     panel.classList.toggle("pinned");
