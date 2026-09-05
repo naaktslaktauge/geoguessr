@@ -4,13 +4,34 @@
 地点を数件足すだけなら `js/locations.js` を直接編集するほうが早いです。
 
 ## ファイル
+### 手作業リスト（名所・ランドマーク 344件）
 | ファイル | 内容 |
 |---|---|
 | `part1〜4.py` | 地点の一覧（表示名・検索クエリ・国コード・エリア・難易度） |
 | `geo3.py` | 検索クエリから座標を取得（Photon / Nominatim） |
 | `snap.py` | 最寄りの車道上へ座標を吸着（Overpass API） |
 | `cross.py` | 2つの地理サービスを突き合わせて誤りを検出 |
-| `gen.py` | `js/locations.js` を生成 |
+| `gen.py` | 344件版の `js/locations.js` を生成 |
+
+### 一括生成（都市データ 約690件）
+| ファイル | 内容 |
+|---|---|
+| `countries.py` | 対象の国・地域とエリアごとの追加目標件数 |
+| `pick_cities.py` | GeoNames の都市データから条件に合う地点を選ぶ |
+| `snap_add.py` | 追加分を道路へ吸着（任意。Overpass が重いときは省略可） |
+| `gen_all.py` | 手作業リストと追加分を統合して `js/locations.js` を生成 |
+
+一括生成には GeoNames の都市データが必要です。
+```bash
+curl -O https://download.geonames.org/export/dump/cities15000.zip
+unzip cities15000.zip -d tools/
+python3 tools/pick_cities.py tools     # 条件に合う都市を選ぶ → added.json
+python3 tools/gen_all.py   tools js/locations.js
+```
+
+難易度は人口で機械的に決めています（首都または150万人以上＝やさしい、
+15万人以上＝ふつう、それ以下＝むずかしい）。手作業リストの344件は
+1地点ずつ人手で付けた値をそのまま使います。
 
 ## 手順
 ```bash
