@@ -26,8 +26,8 @@
 
 一括生成には GeoNames の都市データが必要です。
 ```bash
-curl -O https://download.geonames.org/export/dump/cities1000.zip
-unzip cities1000.zip -d tools/
+curl -O https://download.geonames.org/export/dump/cities500.zip
+unzip cities500.zip -d tools/
 python3 tools/build_big.py tools js/locations.js
 ```
 

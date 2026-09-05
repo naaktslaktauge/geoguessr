@@ -8,8 +8,9 @@ from countries import COUNTRIES
 from difficulty import familiarity, assign_by_rank, country_tier
 random.seed(20260905)
 
-QUOTA = {"japan":1500,"asia":1800,"europe":2600,"namerica":1700,
-         "samerica":1000,"africa":700,"oceania":700}
+# 日本は GeoNames の収録自体が約2,200件で頭打ちのため、他エリアで補っている
+QUOTA = {"japan":2000,"asia":3600,"europe":6300,"namerica":3600,
+         "samerica":2000,"africa":1400,"oceania":1400}
 
 # 「・」や「ー」だけで日本語と誤判定しないよう、実際の仮名だけを見る
 KANA = re.compile(r"[ぁ-ゖァ-ヺ]")
@@ -22,6 +23,11 @@ KANJI_COUNTRIES = {"JP", "KR", "TW", "HK", "MO"}
 HIRA  = re.compile(r"[ぁ-ゖ]")
 KANJI = re.compile(r"[一-龯]")
 
+# 仮名とラテン文字が混ざった候補は文字化けの可能性が高い
+# （「スウæォンジ」= Swansea、「クランj」など。
+#   「ウォーエーカーズ/Warr Acres」のような併記もここで弾ける）
+MIXED = re.compile(r"[A-Za-zÀ-ÿ]")
+
 def jp_name(alt, cc, fallback):
     """日本語の呼び名を選ぶ。
        日本の地名は漢字が正式なので漢字を優先する（「あおもり」ではなく「青森」）。
@@ -31,6 +37,7 @@ def jp_name(alt, cc, fallback):
         t = t.strip(TRIM)
         if not t or len(t) > 20: continue
         if SIMPLIFIED & set(t): continue
+        if KANA.search(t) and MIXED.search(t): continue    # 文字化けの疑い
         if cc in KANJI_COUNTRIES:
             # 日本・韓国・台湾・香港・マカオは漢字表記が日本語の呼び名になる
             # （釜山は片仮名の別名が無く、漢字しか用意されていない）
@@ -62,7 +69,7 @@ DIFF_OVERRIDE = {"ブリスベン":1, "パース":1, "アデレード":1}
 # ---- GeoNames の候補を読む ----
 cands = defaultdict(list)
 seen = set()
-for line in open(SP+"/cities1000.txt", encoding="utf-8"):
+for line in open(SP+"/cities500.txt", encoding="utf-8"):
     f = line.rstrip("\n").split("\t")
     if len(f) < 15: continue
     cc = f[8]
@@ -139,7 +146,7 @@ for region, quota in QUOTA.items():
     for c in allrows:
         final.append({"name":c["name"], "country":c["country"], "region":c["region"],
                       "diff":DIFF_OVERRIDE.get(c["name"], c["diff"]),
-                      "lat":round(c["lat"],5), "lng":round(c["lng"],5)})
+                      "lat":round(c["lat"],4), "lng":round(c["lng"],4)})
 
 # ---- コンパクト形式で出力 ----
 REGIONS = ["japan","asia","europe","namerica","samerica","africa","oceania"]
