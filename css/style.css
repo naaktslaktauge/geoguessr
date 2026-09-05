@@ -589,7 +589,7 @@ button{font-family:inherit}
 }
 .fx-text{
   position:relative;padding:0 16px;
-  font-size:clamp(30px, 11vw, 88px);font-weight:900;letter-spacing:2px;
+  font-size:clamp(32px, 12vw, 92px);font-weight:900;letter-spacing:10px;text-indent:10px;
   white-space:nowrap;opacity:0;color:#ffe27a;
   text-shadow:0 0 14px rgba(245,197,24,.95), 0 0 44px rgba(245,120,24,.75),
               0 5px 0 #a8630b, 0 9px 26px rgba(0,0,0,.75);
@@ -620,6 +620,11 @@ button{font-family:inherit}
   .fx.play .fx-flash,.fx.play .fx-rays{animation:none;opacity:0}
   .fx.play .fx-text{animation:fxfade 1s ease}
   @keyframes fxfade{0%,100%{opacity:0}20%,80%{opacity:1}}
+}
+/* 画面には出さず、読み上げにだけ渡す */
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;
 }
 .sound-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 14px}
 .btn.small{padding:7px 13px;font-size:12px}
