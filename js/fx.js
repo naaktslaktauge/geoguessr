@@ -26,17 +26,42 @@ const Fx = (() => {
     try { ctx = new AC(); } catch(e){ return null; }
     return ctx;
   }
+  /**
+   * 音を鳴らせる状態にする。
+   * スマホは「操作の中で実際に音を出す」まで解放されないことがあるため、
+   * 無音を1回鳴らして確実に開けておく。解放できるまで毎回の操作で試す。
+   */
   function unlock(){
-    const c = initAudio();
-    if (c && c.state === "suspended") c.resume().catch(() => {});
-  }
-
-  /** パチスロ風の上昇音。矩形波のアルペジオに打撃音を重ねる */
-  function chime(){
-    if (!soundOn()) return;
     const c = initAudio();
     if (!c) return;
     if (c.state === "suspended") c.resume().catch(() => {});
+    try {
+      const b = c.createBuffer(1, 1, 22050);
+      const s = c.createBufferSource();
+      s.buffer = b;
+      s.connect(c.destination);
+      s.start(0);
+    } catch(e){}
+    if (c.state === "running") removeUnlockListeners();
+  }
+
+  const UNLOCK_EVENTS = ["pointerdown", "touchend", "click", "keydown"];
+  function addUnlockListeners(){
+    UNLOCK_EVENTS.forEach(e => document.addEventListener(e, unlock, true));
+  }
+  function removeUnlockListeners(){
+    UNLOCK_EVENTS.forEach(e => document.removeEventListener(e, unlock, true));
+  }
+
+  /**
+   * パチスロ風の上昇音。矩形波のアルペジオに打撃音を重ねる。
+   * target を渡すと、そこに書き出す（波形を検証するときに使う）。
+   */
+  function chime(target){
+    if (!target && !soundOn()) return;
+    const c = target || initAudio();
+    if (!c) return;
+    if (!target && c.state === "suspended") c.resume().catch(() => {});
     const t0 = c.currentTime;
 
     // 打撃音（短いノイズ）
@@ -46,7 +71,7 @@ const Fx = (() => {
       const d = buf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = (Math.random()*2 - 1) * (1 - i/len);
       const src = c.createBufferSource(); src.buffer = buf;
-      const g = c.createGain(); g.gain.value = 0.12;
+      const g = c.createGain(); g.gain.value = 0.28;   // スマホのスピーカーは小さいので大きめに
       src.connect(g).connect(c.destination);
       src.start(t0);
     } catch(e){}
@@ -58,7 +83,7 @@ const Fx = (() => {
       o.type = "square";
       o.frequency.setValueAtTime(f, at);
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(0.16, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.34, at + 0.012);
       g.gain.exponentialRampToValueAtTime(0.0001, at + (i === 3 ? 0.42 : 0.16));
       o.connect(g).connect(c.destination);
       o.start(at); o.stop(at + (i === 3 ? 0.45 : 0.2));
@@ -101,9 +126,8 @@ const Fx = (() => {
   }
 
   function init(){
-    // 最初の操作で音を使えるようにしておく
-    document.addEventListener("pointerdown", unlock, { once: true });
-    document.addEventListener("keydown", unlock, { once: true });
+    // 操作のたびに解放を試み、鳴らせるようになったら監視をやめる
+    addUnlockListeners();
     const cb = $("opt-sound");
     if (cb){
       cb.checked = soundOn();
