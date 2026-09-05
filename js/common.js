@@ -1,0 +1,84 @@
+/* ============================================================
+ * 共通ユーティリティ（ソロ / オンライン対戦の両方で使用）
+ * ============================================================ */
+const $ = id => document.getElementById(id);
+
+/* エリアごとの「地図の広さ(km)」— スコアのスケール */
+const MAP_SIZE = {
+  world:14916.862, japan:2200, asia:9000, europe:5000,
+  namerica:7000, samerica:6000, africa:7000, oceania:5000
+};
+
+/* プレイヤーの色（最大4人） */
+const PLAYER_COLORS = ["#3b82f6", "#ef4444", "#f59e0b", "#a855f7"];
+
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = $(id);
+  if (el) el.classList.add("active");
+}
+
+/* スコア計算（GeoGuessr 準拠の指数減衰） */
+function calcScore(km, region){
+  const size = MAP_SIZE[region] || MAP_SIZE.world;
+  return Math.max(0, Math.round(5000 * Math.exp(-10 * km / size)));
+}
+
+function fmtDist(km){
+  if (km == null) return "—";
+  if (km < 1)   return Math.round(km * 1000) + " m";
+  if (km < 100) return km.toFixed(1) + " km";
+  return Math.round(km).toLocaleString() + " km";
+}
+
+function fmtTime(sec){
+  sec = Math.max(0, sec);
+  return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+/* 部屋コード生成（紛らわしい文字を除外） */
+function makeRoomCode(len){
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < (len || 5); i++) s += A[Math.floor(Math.random() * A.length)];
+  return s;
+}
+
+/* ---------- 対戦ロジック（純粋関数・テスト対象） ---------- */
+
+/** そのラウンドの出題者を返す（毎ラウンド交代） */
+function quizmasterFor(round, players){
+  if (!players.length) return null;
+  return players[(round - 1) % players.length].id;
+}
+
+/** 出題モードでの総ラウンド数 = 人数 × 周回数 */
+function totalRounds(mode, players, settings){
+  return mode === "quiz" ? players.length * settings.laps : settings.rounds;
+}
+
+/** 1ラウンド分の採点。guesses = {playerId:{lat,lng}} */
+function scoreRound(location, guesses, players, region, quizmasterId){
+  return players.map(p => {
+    if (p.id === quizmasterId) return { id:p.id, name:p.name, quizmaster:true, km:null, score:0, guess:null };
+    const g = guesses[p.id];
+    if (!g) return { id:p.id, name:p.name, quizmaster:false, km:null, score:0, guess:null };
+    const km = haversineKm(g, location);
+    return { id:p.id, name:p.name, quizmaster:false, km, score:calcScore(km, region), guess:g };
+  });
+}
+
+/** 得点の高い順に順位付け（同点は同順位） */
+function rankPlayers(players){
+  const sorted = players.slice().sort((a, b) => b.score - a.score);
+  let rank = 0, prev = null;
+  return sorted.map((p, i) => {
+    if (p.score !== prev){ rank = i + 1; prev = p.score; }
+    return Object.assign({}, p, { rank });
+  });
+}

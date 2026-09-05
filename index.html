@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoGuessr Clone - 世界どこでしょう</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ==================== メニュー ==================== -->
+<section id="screen-menu" class="screen active">
+  <div class="home-wrap">
+    <header class="home-head">
+      <h1 class="logo">GEO<span>GUESSR</span></h1>
+      <p class="tagline">ストリートビューだけを頼りに、世界のどこにいるか当てよう。</p>
+    </header>
+
+    <div class="panel">
+      <button id="btn-menu-solo" class="menu-btn">
+        <span class="menu-ico">🌍</span>
+        <span class="menu-txt"><b>ひとりで遊ぶ</b><small>自分のペースで世界を旅する</small></span>
+      </button>
+      <button id="btn-menu-multi" class="menu-btn">
+        <span class="menu-ico">🎮</span>
+        <span class="menu-txt"><b>オンライン対戦</b><small>2〜4人・部屋コードで友達と対戦</small></span>
+      </button>
+
+      <details class="apikey">
+        <summary>Google Maps API キー設定（任意・推奨）</summary>
+        <p class="note">
+          キーを入れると本物のストリートビュー操作（移動制限・ラベル非表示・出題地点の自動チェック）が使えます。<br>
+          未入力でもキー不要の埋め込みモードで遊べます。キーはこの PC のブラウザ内にのみ保存されます。
+        </p>
+        <div class="key-row">
+          <input type="password" id="api-key" placeholder="AIza... (省略可)" autocomplete="off">
+          <button id="btn-key-save" class="btn ghost">保存</button>
+          <button id="btn-key-clear" class="btn ghost">削除</button>
+        </div>
+        <p id="key-status" class="key-status">未設定：埋め込みモードで動作します</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ソロ設定 ==================== -->
+<section id="screen-home" class="screen">
+  <div class="home-wrap">
+    <header class="home-head">
+      <h1 class="logo sm">ひとりで遊ぶ</h1>
+    </header>
+
+    <div class="panel">
+      <div class="field">
+        <label>ラウンド数</label>
+        <div class="seg" data-setting="rounds">
+          <button data-value="3">3</button>
+          <button data-value="5" class="on">5</button>
+          <button data-value="10">10</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>エリア</label>
+        <div class="seg wrap" data-setting="region">
+          <button data-value="world" class="on">世界</button>
+          <button data-value="japan">日本</button>
+          <button data-value="asia">アジア</button>
+          <button data-value="europe">ヨーロッパ</button>
+          <button data-value="namerica">北米</button>
+          <button data-value="samerica">南米</button>
+          <button data-value="africa">アフリカ</button>
+          <button data-value="oceania">オセアニア</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>難易度</label>
+        <div class="seg" data-setting="difficulty">
+          <button data-value="all" class="on">すべて</button>
+          <button data-value="1">やさしい</button>
+          <button data-value="2">ふつう</button>
+          <button data-value="3">むずかしい</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>制限時間 / ラウンド</label>
+        <div class="seg" data-setting="timeLimit">
+          <button data-value="0" class="on">無制限</button>
+          <button data-value="120">2分</button>
+          <button data-value="60">1分</button>
+          <button data-value="30">30秒</button>
+        </div>
+      </div>
+
+      <div class="field" id="field-rules">
+        <label>ルール <span class="hint">(API キー使用時のみ)</span></label>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="opt-move" checked> 移動できる</label>
+          <label class="chk"><input type="checkbox" id="opt-pan" checked> 視点を回せる</label>
+          <label class="chk"><input type="checkbox" id="opt-zoom" checked> ズームできる</label>
+        </div>
+      </div>
+
+      <button id="btn-start" class="btn primary big">ゲーム開始</button>
+      <button id="btn-home-back" class="btn ghost wide">メニューに戻る</button>
+      <div id="best-score" class="best"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ソロ：ゲーム ==================== -->
+<section id="screen-game" class="screen">
+  <div id="pano" class="pano"></div>
+  <div id="pano-loading" class="pano-loading"><div class="spinner"></div><span>ストリートビューを読み込み中…</span></div>
+
+  <div class="hud">
+    <div class="hud-box"><span class="hud-label">ラウンド</span><span class="hud-value" id="hud-round">1 / 5</span></div>
+    <div class="hud-box"><span class="hud-label">スコア</span><span class="hud-value" id="hud-score">0</span></div>
+    <div class="hud-box" id="hud-timer-box" hidden><span class="hud-label">残り時間</span><span class="hud-value" id="hud-timer">--:--</span></div>
+  </div>
+
+  <div class="hud-right">
+    <button id="btn-reset-view" class="icon-btn" title="最初の地点に戻る">⟲</button>
+    <button id="btn-quit" class="icon-btn" title="ゲームをやめる">✕</button>
+  </div>
+
+  <div id="map-panel" class="map-panel">
+    <button id="btn-pin" class="pin-btn" title="地図を固定">📌</button>
+    <div id="guess-map" class="guess-map"></div>
+    <button id="btn-guess" class="btn primary guess-btn" disabled>地図にピンを置いてください</button>
+  </div>
+</section>
+
+<!-- ==================== ソロ：ラウンド結果 ==================== -->
+<section id="screen-round" class="screen">
+  <div id="result-map" class="result-map"></div>
+  <div class="result-card">
+    <div class="result-place" id="res-place">—</div>
+    <div class="result-dist" id="res-dist">—</div>
+    <div class="result-bar"><div class="result-bar-fill" id="res-bar"></div></div>
+    <div class="result-score"><span id="res-score">0</span> <small>/ 5000 点</small></div>
+    <div class="result-actions">
+      <a id="res-link" class="btn ghost" href="#" target="_blank" rel="noopener">Google マップで確認</a>
+      <button id="btn-next" class="btn primary">次のラウンドへ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ソロ：最終結果 ==================== -->
+<section id="screen-final" class="screen">
+  <div class="final-wrap">
+    <h2 class="final-title">ゲーム終了</h2>
+    <div class="final-total"><span id="fin-total">0</span><small id="fin-max">/ 25000</small></div>
+    <div class="final-rank" id="fin-rank">—</div>
+    <div id="fin-new" class="final-new" hidden>🏆 ハイスコア更新！</div>
+    <ol class="final-list" id="fin-list"></ol>
+    <div class="final-actions">
+      <button id="btn-again" class="btn primary">もう一度あそぶ</button>
+      <button id="btn-home" class="btn ghost">設定に戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 対戦：接続 ==================== -->
+<section id="screen-connect" class="screen">
+  <div class="home-wrap">
+    <header class="home-head"><h1 class="logo sm">オンライン対戦</h1></header>
+    <div class="panel">
+      <div class="field">
+        <label>あなたの名前</label>
+        <input type="text" id="mp-name" class="txt" maxlength="12" placeholder="なまえ（12文字まで）">
+      </div>
+
+      <button id="btn-create-room" class="btn primary big">部屋を作る（ホストになる）</button>
+
+      <div class="or-line"><span>または</span></div>
+
+      <div class="field">
+        <label>部屋コードで参加</label>
+        <div class="key-row">
+          <input type="text" id="mp-code" class="txt code-input" maxlength="5" placeholder="ABCDE" autocomplete="off">
+          <button id="btn-join-room" class="btn primary">参加</button>
+        </div>
+      </div>
+
+      <p id="conn-msg" class="conn-msg"></p>
+      <p class="note">
+        通信は WebRTC による P2P です。サーバーの用意は不要で、部屋コードを共有するだけで
+        インターネット越しに対戦できます。厳しいファイアウォール下では接続できないことがあります。
+      </p>
+      <button id="btn-conn-back" class="btn ghost wide">メニューに戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 対戦：ロビー ==================== -->
+<section id="screen-lobby" class="screen">
+  <div class="home-wrap">
+    <header class="home-head"><h1 class="logo sm">待機ロビー</h1></header>
+    <div class="panel">
+      <div class="code-box">
+        <span class="code-label">部屋コード</span>
+        <span class="code-value" id="lobby-code">-----</span>
+        <button id="btn-copy-code" class="btn ghost">コードをコピー</button>
+      </div>
+
+      <div class="field">
+        <label>参加者 <span class="hint" id="lobby-count">1 / 4 人</span></label>
+        <ul class="lobby-players" id="lobby-players"></ul>
+      </div>
+
+      <div id="lobby-host-ui" hidden>
+        <div class="field">
+          <label>対戦モード</label>
+          <div class="seg" data-setting="mode">
+            <button data-value="all" class="on">全員が回答者</button>
+            <button data-value="quiz">出題者あり</button>
+          </div>
+        </div>
+
+        <div class="field" id="row-rounds">
+          <label>ラウンド数</label>
+          <div class="seg" data-setting="rounds">
+            <button data-value="3">3</button>
+            <button data-value="5" class="on">5</button>
+            <button data-value="10">10</button>
+          </div>
+        </div>
+
+        <div class="field" id="row-laps" hidden>
+          <label>周回数 <span class="hint">全員が同じ回数だけ出題者になります</span></label>
+          <div class="seg" data-setting="laps">
+            <button data-value="1" class="on">1周</button>
+            <button data-value="2">2周</button>
+            <button data-value="3">3周</button>
+          </div>
+          <p class="laps-note" id="laps-note"></p>
+        </div>
+
+        <div id="row-area">
+          <div class="field">
+            <label>エリア</label>
+            <div class="seg wrap" data-setting="region">
+              <button data-value="world" class="on">世界</button>
+              <button data-value="japan">日本</button>
+              <button data-value="asia">アジア</button>
+              <button data-value="europe">ヨーロッパ</button>
+              <button data-value="namerica">北米</button>
+              <button data-value="samerica">南米</button>
+              <button data-value="africa">アフリカ</button>
+              <button data-value="oceania">オセアニア</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>難易度</label>
+            <div class="seg" data-setting="difficulty">
+              <button data-value="all" class="on">すべて</button>
+              <button data-value="1">やさしい</button>
+              <button data-value="2">ふつう</button>
+              <button data-value="3">むずかしい</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>制限時間 / ラウンド</label>
+          <div class="seg" data-setting="timeLimit">
+            <button data-value="0">無制限</button>
+            <button data-value="120" class="on">2分</button>
+            <button data-value="60">1分</button>
+            <button data-value="30">30秒</button>
+          </div>
+        </div>
+
+        <button id="btn-lobby-start" class="btn primary big" disabled>ゲーム開始</button>
+      </div>
+
+      <div id="lobby-guest-ui" hidden>
+        <p class="wait-note">ホストの開始を待っています…</p>
+        <p class="conn-msg" id="lobby-guest-info"></p>
+      </div>
+
+      <button id="btn-lobby-leave" class="btn ghost wide">退出する</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 対戦：ゲーム ==================== -->
+<section id="screen-mgame" class="screen">
+  <div id="m-pano" class="pano"></div>
+  <div id="m-pano-loading" class="pano-loading" hidden><div class="spinner"></div><span>ストリートビューを読み込み中…</span></div>
+
+  <div class="hud">
+    <div class="hud-box"><span class="hud-label">ラウンド</span><span class="hud-value" id="m-round">1 / 5</span></div>
+    <div class="hud-box"><span class="hud-label">モード</span><span class="hud-value sm" id="m-mode">全員回答</span></div>
+    <div class="hud-box" id="m-timer-box" hidden><span class="hud-label">残り時間</span><span class="hud-value" id="m-timer">--:--</span></div>
+  </div>
+
+  <div class="hud-right">
+    <div class="players-box" id="m-players"></div>
+    <button id="btn-mquit" class="icon-btn" title="退出する">✕</button>
+  </div>
+
+  <div id="qm-banner" class="qm-banner" hidden>
+    🎯 あなたが出題者です — 回答者が答えるのを待ちましょう（このラウンドは得点なし）
+  </div>
+
+  <div id="map-panel-m" class="map-panel">
+    <button id="btn-mpin" class="pin-btn" title="地図を固定">📌</button>
+    <div id="m-guess-map" class="guess-map"></div>
+    <button id="btn-mguess" class="btn primary guess-btn" disabled>地図にピンを置いてください</button>
+  </div>
+
+  <!-- 出題フェーズのオーバーレイ -->
+  <div id="pick-overlay" class="pick-overlay" hidden>
+    <div id="pick-picker" class="pick-picker" hidden>
+      <div class="pick-head">🎯 あなたが出題者です — 出題したい場所を地図でクリック</div>
+      <div id="pick-map" class="pick-map"></div>
+      <div id="pick-card" class="pick-card" hidden>
+        <div id="pick-pano" class="pick-pano"></div>
+        <div class="pick-info">
+          <div class="pick-coord" id="pick-coord"></div>
+          <div class="pick-status" id="pick-status"></div>
+        </div>
+        <div class="pick-actions">
+          <button id="btn-pick-redo" class="btn ghost">選び直す</button>
+          <button id="btn-pick-ok" class="btn primary" disabled>この場所で出題</button>
+        </div>
+      </div>
+    </div>
+    <div id="pick-wait" class="pick-wait" hidden>
+      <div class="spinner"></div>
+      <p><b id="pick-wait-name">出題者</b> さんが出題地点を選んでいます…</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 対戦：ラウンド結果 ==================== -->
+<section id="screen-mround" class="screen">
+  <div id="m-result-map" class="result-map"></div>
+  <div class="result-card wide">
+    <div class="result-place" id="mres-place">—</div>
+    <div class="mres-rows" id="mres-rows"></div>
+    <div class="result-actions">
+      <a id="mres-link" class="btn ghost" href="#" target="_blank" rel="noopener">Google マップで確認</a>
+      <button id="btn-mnext" class="btn primary">次のラウンドへ</button>
+    </div>
+    <p class="wait-note" id="mres-wait" hidden>ホストが次のラウンドを始めるのを待っています…</p>
+  </div>
+</section>
+
+<!-- ==================== 対戦：最終結果 ==================== -->
+<section id="screen-mfinal" class="screen">
+  <div class="final-wrap">
+    <h2 class="final-title">対戦終了</h2>
+    <div class="final-rank big-win" id="mfin-winner">—</div>
+    <ol class="final-list mfin" id="mfin-list"></ol>
+    <div class="final-actions">
+      <button id="btn-magain" class="btn primary">ロビーに戻る（もう一戦）</button>
+      <button id="btn-mfin-leave" class="btn ghost">退出する</button>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script src="js/common.js"></script>
+<script src="js/locations.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/pano.js"></script>
+<script src="js/net.js"></script>
+<script src="js/multi.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# テストの一時ビルド
+test/_build.js
+
+# エディタ
+.vscode/
+.idea/
+*.swp
