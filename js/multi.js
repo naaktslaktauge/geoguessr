@@ -18,6 +18,8 @@ const Multi = (() => {
 
   const isHost = () => Net.isHost;
   const me     = () => Net.myId;
+  /** 自分が回答済みか。復帰直後はローカルの C.guess が空なので配信状態で判定する */
+  const answeredByMe = st => !!st && (st.answered || []).indexOf(me()) >= 0;
 
   /* ============================================================
    * 接続
@@ -47,7 +49,7 @@ const Multi = (() => {
     setConnMsg("接続しています…");
     Net.join(code, onNetEvent).then(() => {
       C.joined = true;
-      Net.send({ t:"hello", name:C.name });
+      Net.send({ t:"hello", name:C.name, token:rejoinToken(code) });
       showScreen("screen-lobby");
       $("lobby-code").textContent = Net.roomCode;
     }).catch(err => setConnMsg("⚠️ " + (err.message || "接続に失敗しました")));
@@ -60,8 +62,13 @@ const Multi = (() => {
       // hello を待って players に追加する
     } else if (ev.type === "peer-leave"){
       if (!isHost() || !H) return;
+      if (H.phase === "lobby"){
+        H.players = H.players.filter(x => x.id !== ev.id);   // ロビー中は席を残さない
+        hSync();
+        return;
+      }
       const p = H.players.find(x => x.id === ev.id);
-      if (p) p.connected = false;
+      if (p) p.connected = false;                // ゲーム中は復帰できるよう席を残す
       hSync();                                   // 切断をまず全員に伝える
       if (H.phase === "picking" && H.quizmasterId === ev.id) hNextRound();
       else if (H.phase === "playing") hMaybeEndRound();
@@ -71,9 +78,15 @@ const Multi = (() => {
     } else if (ev.type === "data"){
       if (isHost()){ hOnMessage(ev.from, ev.msg); }
       else if (ev.msg && ev.msg.t === "busy"){
-        alert("この部屋は現在ゲーム進行中のため参加できません。");
+        alert("この部屋は現在ゲーム進行中のため、新規の参加はできません。\n" +
+              "途中で抜けた人が戻る場合は、抜けたときと同じ名前で参加してください。");
         leave();
       }
+      else if (ev.msg && ev.msg.t === "full"){
+        alert("この部屋は満員です（最大4人）。");
+        leave();
+      }
+      else if (ev.msg && ev.msg.t === "rejoined"){ /* 復帰成功。直後に届く状態で描画される */ }
       else applyState(ev.msg);
     }
   }
@@ -95,12 +108,37 @@ const Multi = (() => {
     if (!msg || !H) return;
 
     if (msg.t === "hello"){
-      if (H.phase !== "lobby"){ Net.sendTo(from, { t:"busy" }); return; }
-      if (H.players.length >= 4){ Net.sendTo(from, { t:"busy" }); return; }
-      if (!H.players.find(p => p.id === from)){
-        const name = String(msg.name || "プレイヤー").slice(0, 12);
-        H.players.push({ id:from, name, score:0, connected:true });
+      const name  = String(msg.name || "プレイヤー").slice(0, 12);
+      const token = typeof msg.token === "string" ? msg.token.slice(0, 32) : "";
+      if (H.players.find(p => p.id === from && p.connected)) return;   // 重複した hello
+
+      // --- 席への復帰を試みる ---
+      let slot = null;
+      if (token) slot = H.players.find(p => !p.connected && p.token && p.token === token);
+      if (!slot){
+        // トークンが無い端末から戻ってきた場合は、同名で切断中の席が1つだけなら復帰を許す
+        const sameName = H.players.filter(p => !p.connected && p.name === name);
+        if (sameName.length === 1) slot = sameName[0];
       }
+      if (slot){
+        const oldId = slot.id;
+        slot.id = from;
+        slot.name = name;
+        slot.connected = true;
+        if (token) slot.token = token;
+        // ID が変わるので、その席に紐づく情報を新しい ID へ移し替える
+        if (H.guesses[oldId]){ H.guesses[from] = H.guesses[oldId]; delete H.guesses[oldId]; }
+        if (H.quizmasterId === oldId) H.quizmasterId = from;
+        Net.sendTo(from, { t:"rejoined" });
+        hSync();
+        if (H.phase === "playing") hMaybeEndRound();
+        return;
+      }
+
+      // --- 新規参加 ---
+      if (H.phase !== "lobby"){ Net.sendTo(from, { t:"busy" }); return; }
+      if (H.players.length >= 4){ Net.sendTo(from, { t:"full" }); return; }
+      H.players.push({ id:from, name, token, score:0, connected:true });
       hSync();
     }
     else if (msg.t === "guess" && H.phase === "playing"){
@@ -271,14 +309,18 @@ const Multi = (() => {
       Pano.load(st.location, { move:true, pan:true, zoom:true }, { el:$("m-pano") })
           .then(() => { $("m-pano-loading").hidden = true; });
     }
-    if (C.guess) $("btn-mguess").disabled = true;
+    if (C.guess || answeredByMe(st)){
+      const b = $("btn-mguess");
+      b.disabled = true;
+      b.textContent = "回答しました（他の人を待っています）";
+    }
   }
 
   function ensureMaps(){
     if (!C.maps.guess){
       C.maps.guess = createPickerMap("m-guess-map", p => {
         if (!C.st || C.st.phase !== "playing") return;
-        if (C.guess) return;
+        if (C.guess || answeredByMe(C.st)) return;
         C.pending = p;
         const b = $("btn-mguess");
         b.disabled = false;

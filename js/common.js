@@ -66,6 +66,21 @@ function makeRoomCode(len){
   return s;
 }
 
+/**
+ * 再参加用トークン。部屋ごとに端末内へ保存し、席の持ち主であることの証明に使う。
+ * PeerJS の ID は再接続のたびに変わるため、これが無いと復帰時に別人扱いになる。
+ */
+function rejoinToken(roomCode){
+  const key = "gg_rejoin_" + roomCode;
+  let t = null;
+  try { t = localStorage.getItem(key); } catch(e){}
+  if (!t){
+    t = makeRoomCode(16);
+    try { localStorage.setItem(key, t); } catch(e){}
+  }
+  return t;
+}
+
 /* ---------- 対戦ロジック（純粋関数・テスト対象） ---------- */
 
 /** そのラウンドの出題者を返す（毎ラウンド交代） */

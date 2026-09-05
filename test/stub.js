@@ -81,7 +81,12 @@ var document = {
 };
 var window = { };
 var navigator = {};
-var localStorage = { getItem:function(){ return null; }, setItem:function(){}, removeItem:function(){} };
+var __store = {};
+var localStorage = {
+  getItem:    function(k){ return Object.prototype.hasOwnProperty.call(__store, k) ? __store[k] : null; },
+  setItem:    function(k, v){ __store[k] = String(v); },
+  removeItem: function(k){ delete __store[k]; }
+};
 function alert(m){ say("    [alert] " + m); }
 function confirm(){ return true; }
 if (typeof console === "undefined") var console = { log:function(){}, warn:function(){} };
@@ -122,11 +127,14 @@ function Peer(id){
   __peers.push(this);
   setTimeout(function(){ self.fire("open", self.id); });
 }
+var __allConns = [], __gseq = 0;
 function FakeConn(peerId){
   var self = this;
-  this.peer = peerId; this.open = true; this._h = {}; this.sent = [];
+  this.peer = peerId; this.open = true; this._h = {}; this.sent = []; this.seq = [];
   this.on = function(e, cb){ (self._h[e] = self._h[e] || []).push(cb); };
   this.fire = function(e, a){ (self._h[e] || []).forEach(function(f){ f(a); }); };
-  this.send = function(m){ self.sent.push(m); };
+  // 送信順を記録しておくと、切断済みの相手から古い状態を読む事故を防げる
+  this.send = function(m){ self.sent.push(m); self.seq.push(__gseq++); };
   this.close = function(){ self.open = false; self.fire("close"); };
+  __allConns.push(this);
 }

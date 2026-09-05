@@ -55,8 +55,10 @@ async function newGame(n, cfg){
   G = []; connById = {};
   for (var i = 2; i <= n; i++){
     var c = new FakeConn("g" + gameSeq + "_" + i);
+    c.token = "tok" + gameSeq + "_" + i;
+    c.pname = "P" + i;
     handler(c); c.fire("open");
-    guestSend(c, { t:"hello", name:"P" + i });
+    guestSend(c, { t:"hello", name:c.pname, token:c.token });
     G.push(c); connById[c.peer] = c;
     await tick();
   }
@@ -82,6 +84,43 @@ async function answerAll(st, skip){
     }
     await tick();
   }
+}
+
+
+
+/**
+ * 現時点で最も新しい配信状態を返す。
+ * 特定のコネクションから読むと、そこが切断されていた場合に
+ * 古い状態を見てテストが素通りしてしまうため、全体から最新を拾う。
+ */
+function latestState(){
+  var best = null, bestSeq = -1;
+  __allConns.forEach(function(c){
+    for (var i = c.sent.length - 1; i >= 0; i--){
+      if (c.sent[i] && c.sent[i].phase){
+        if (c.seq[i] > bestSeq){ bestSeq = c.seq[i]; best = c.sent[i]; }
+        break;
+      }
+    }
+  });
+  return best;
+}
+
+/** 抜けた人が同じ部屋コードで戻ってくる操作 */
+function rejoinAs(name, token, id){
+  var peer = __peers[__peers.length - 1];
+  var handler = peer._h.connection[0];
+  var c = new FakeConn(id);
+  c.token = token; c.pname = name;
+  handler(c); c.fire("open");
+  guestSend(c, { t:"hello", name:name, token:token });
+  connById[id] = c;
+  return c;
+}
+
+/** 名前からプレイヤー情報を引く */
+function playerByName(st, name){
+  return st.players.filter(function(p){ return p.name === name; })[0];
 }
 
 /** 1ゲームを最後まで進行し、診断情報を返す */
@@ -280,6 +319,185 @@ async function sectionG(){
   guestSend(xss, { t:"hello", name:"<img src=x onerror=alert(1)>" });
   await tick();
   check("定員4人を超える参加は拒否される", lastState(G[0]).players.length <= 4, lastState(G[0]).players.length);
+}
+
+
+/* ============================================================
+ * H. 途中離脱からの再参加
+ * ============================================================ */
+async function sectionH(){
+  say("");
+  say("━━━ H. 途中離脱からの再参加 ━━━");
+
+  /* --- H-1: 未回答のまま抜けて戻る --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState();
+  var loc = st.location;
+  var p2 = G[0], p3 = G[1];                    // P2 / P3
+
+  // P2 が回答してから、P3 が未回答のまま離脱
+  guestSend(p2, { t:"guess", lat:loc.lat, lng:loc.lng });
+  await tick();
+  p3.close(); await tick();
+  st = latestState();
+  check("H1 離脱直後も席は残る（3人のまま）", st.players.length === 3, st.players.length);
+  check("H1 離脱者は connected=false", playerByName(st, "P3").connected === false);
+  check("H1 ラウンドは進行中のまま", st.phase === "playing", st.phase);
+
+  // 同じトークンで復帰
+  var p3b = rejoinAs("P3", p3.token, "p3_back");
+  await tick();
+  st = latestState();
+  check("★H1 同じ席に復帰できる（人数が増えない）", st.players.length === 3, st.players.length);
+  check("H1 復帰後は connected=true", playerByName(st, "P3").connected === true);
+  check("H1 席の並び順が保たれる（色が変わらない）",
+        st.players.map(function(p){ return p.name; }).join(",") === "P1,P2,P3",
+        st.players.map(function(p){ return p.name; }).join(","));
+  check("H1 復帰した本人に rejoined が届く", p3b.sent.some(function(m){ return m && m.t === "rejoined"; }));
+  check("H1 復帰者に現在の出題地点が配信される",
+        Math.abs(latestState().location.lat - loc.lat) < 1e-9);
+
+  // 復帰後に回答できてラウンドが締まる
+  guestSend(p3b, { t:"guess", lat:loc.lat, lng:loc.lng });
+  await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc, 3).lat, lng:nearby(loc, 3).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("★H1 復帰後に回答するとラウンドが締まる", st.phase === "result", st.phase);
+  check("H1 復帰者もちゃんと採点される",
+        st.results.filter(function(r){ return r.name === "P3"; })[0].score === 5000);
+
+  /* --- H-2: 回答済みで抜けて戻ると回答が保持される --- */
+  clickEl("btn-mnext"); await tick();
+  st = latestState();
+  loc = st.location;
+  guestSend(p2, { t:"guess", lat:loc.lat, lng:loc.lng });      // P2 回答
+  await tick();
+  var p2score = playerByName(latestState(), "P2").score;
+  p2.close(); await tick();
+  var p2b = rejoinAs("P2", p2.token, "p2_back");
+  await tick();
+  st = latestState();
+  check("★H2 回答済みで抜けても回答が引き継がれる",
+        (st.answered || []).indexOf("p2_back") >= 0, JSON.stringify(st.answered));
+  check("H2 得点が保持されている", playerByName(st, "P2").score === p2score,
+        playerByName(st, "P2").score + " / " + p2score);
+
+  // 残り2人が答えればラウンドが締まる（復帰者の再回答は不要）
+  guestSend(p3b, { t:"guess", lat:nearby(loc, 10).lat, lng:nearby(loc, 10).lng });
+  await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc, 4).lat, lng:nearby(loc, 4).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("★H2 復帰者の再回答なしでラウンドが締まる", st.phase === "result", st.phase);
+  check("H2 引き継いだ回答で採点される",
+        st.results.filter(function(r){ return r.name === "P2"; })[0].score === 5000);
+
+  /* --- H-3: トークンが無くても同名なら復帰できる（別端末から戻る場合） --- */
+  clickEl("btn-mnext"); await tick();
+  st = latestState();
+  p3b.close(); await tick();
+  var p3c = rejoinAs("P3", "", "p3_other_device");
+  await tick();
+  st = latestState();
+  check("★H3 トークン無しでも同名なら復帰できる",
+        st.players.length === 3 && playerByName(st, "P3").connected === true,
+        st.players.length + "人 / " + JSON.stringify(st.players.map(function(p){ return p.name + ":" + p.connected; })));
+
+  /* --- H-4: 無関係な新規参加はゲーム中は拒否される --- */
+  var stranger = rejoinAs("乱入者", "tok_stranger", "stranger1");
+  await tick();
+  check("★H4 別名の新規参加はゲーム中は拒否される",
+        latestState().players.length === 3, latestState().players.length);
+  check("H4 拒否理由が本人に通知される",
+        stranger.sent.some(function(m){ return m && m.t === "busy"; }), JSON.stringify(stranger.sent));
+
+  /* --- H-5: 最後まで進めて得点が正しく引き継がれる --- */
+  var guard = 0;
+  while (guard++ < 60){
+    st = latestState();
+    if (st.phase === "final") break;
+    if (st.phase === "playing"){ await answerAll(st); }
+    else if (st.phase === "result"){ clickEl("btn-mnext"); await tick(); }
+    else break;
+  }
+  st = latestState();
+  check("★H5 離脱と復帰を挟んでも最後まで完走する", st.phase === "final", st.phase);
+  check("H5 全員が3人そろって最終結果に出る", st.players.length === 3, st.players.length);
+  check("H5 得点がすべて有限で非負",
+        st.players.every(function(p){ return Number.isFinite(p.score) && p.score >= 0; }),
+        JSON.stringify(st.players.map(function(p){ return p.name + ":" + p.score; })));
+  check("H5 復帰者の得点が0のままではない",
+        playerByName(st, "P2").score > 0 && playerByName(st, "P3").score > 0,
+        JSON.stringify(st.players.map(function(p){ return p.name + ":" + p.score; })));
+
+  /* --- H-6: ロビー中の離脱は席を残さない --- */
+  await newGame(3, { mode:"all", rounds:3 });
+  st = latestState();
+  check("H6 ロビーに3人いる", st.players.length === 3, st.players.length);
+  G[1].close(); await tick();
+  st = latestState();
+  check("★H6 ロビー中の離脱は席が消える（新規参加を塞がない）", st.players.length === 2, st.players.length);
+  var fresh = rejoinAs("新しい人", "tok_fresh", "fresh1");
+  await tick();
+  check("H6 空いた席に新しい人が入れる", latestState().players.length === 3, latestState().players.length);
+
+  /* --- H-7: 出題者ありモードでの復帰 --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var qmIsHost = st.quizmasterId === st.hostId;
+  var pt = { lat:48.8698, lng:2.3078 };
+  if (qmIsHost){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[st.quizmasterId], { t:"picked", lat:pt.lat, lng:pt.lng });
+  }
+  await tick();
+  st = latestState();
+  check("H7 出題者ありモードで出題される", st.phase === "playing", st.phase);
+  // 回答者の1人が抜けて戻る
+  var ans = st.players.filter(function(p){ return p.id !== st.quizmasterId && p.id !== st.hostId; })[0];
+  var ansConn = connById[ans.id];
+  ansConn.close(); await tick();
+  var ansBack = rejoinAs(ans.name, ansConn.token, "quiz_back");
+  await tick();
+  st = latestState();
+  check("★H7 出題者ありモードでも復帰できる",
+        st.players.length === 3 && playerByName(st, ans.name).connected === true,
+        JSON.stringify(st.players.map(function(p){ return p.name + ":" + p.connected; })));
+  check("H7 復帰者に出題地点が配信される",
+        Math.abs(latestState().location.lat - pt.lat) < 0.001);
+
+  /* --- H-8: 出題者本人が落ちて戻る（出題後） --- */
+  await answerAll(latestState());                 // ラウンド1を消化
+  clickEl("btn-mnext"); await tick();
+  st = latestState();
+  check("H8 ラウンド2は出題フェーズ", st.phase === "picking", st.phase);
+  check("H8 ラウンド2の出題者はホスト以外", st.quizmasterId !== st.hostId, st.quizmasterId);
+
+  var qm = st.players.filter(function(p){ return p.id === st.quizmasterId; })[0];
+  var qmConn = connById[qm.id];
+  guestSend(qmConn, { t:"picked", lat:-33.8568, lng:151.2153 });   // 出題する
+  await tick();
+  check("H8 出題されてプレイ開始", latestState().phase === "playing", latestState().phase);
+
+  qmConn.close(); await tick();                     // 出題者が落ちる
+  var qmBack = rejoinAs(qm.name, qmConn.token, "qm_back");
+  await tick();
+  st = latestState();
+  check("★H8 出題者が復帰すると出題者のままである",
+        st.quizmasterId === "qm_back", st.quizmasterId);
+  check("H8 出題者の席が保たれている",
+        st.players.length === 3 && playerByName(st, qm.name).connected === true);
+
+  await answerAll(st);                              // 残りの回答者が答える
+  st = latestState();
+  check("★H8 出題者が復帰してもラウンドが締まる", st.phase === "result", st.phase);
+  var qmRow = st.results.filter(function(r){ return r.id === "qm_back"; })[0];
+  check("H8 復帰した出題者は出題者扱いで0点", qmRow && qmRow.quizmaster === true && qmRow.score === 0,
+        qmRow ? JSON.stringify(qmRow) : "行が無い");
 }
 
 async function main(){
@@ -495,6 +713,7 @@ async function main(){
 
   await sectionF();
   await sectionG();
+  await sectionH();
 
   say("");
   say("════════════════════════════════");

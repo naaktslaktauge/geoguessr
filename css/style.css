@@ -205,6 +205,8 @@ button{font-family:inherit}
 .or-line{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;margin:18px 0}
 .or-line::before,.or-line::after{content:"";flex:1;height:1px;background:var(--line)}
 .conn-msg{font-size:13px;color:var(--gold);min-height:19px;margin:12px 0 0;line-height:1.6}
+.rejoin-note{background:#111721;border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+.rejoin-note b{color:var(--text)}
 
 /* ロビー */
 .code-box{

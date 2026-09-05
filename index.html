@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 
@@ -191,6 +191,11 @@
         通信は WebRTC による P2P です。サーバーの用意は不要で、部屋コードを共有するだけで
         インターネット越しに対戦できます。厳しいファイアウォール下では接続できないことがあります。
       </p>
+      <p class="note rejoin-note">
+        💡 <b>途中で抜けてしまったら</b>：同じ部屋コードでもう一度参加すれば、
+        元の席に得点を保ったまま戻れます。別の端末やブラウザから戻る場合は、
+        <b>抜けたときと同じ名前</b>を入力してください。
+      </p>
       <button id="btn-conn-back" class="btn ghost wide">メニューに戻る</button>
     </div>
   </div>
@@ -367,12 +372,12 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=3"></script>
-<script src="js/locations.js?v=3"></script>
-<script src="js/maps.js?v=3"></script>
-<script src="js/pano.js?v=3"></script>
-<script src="js/net.js?v=3"></script>
-<script src="js/multi.js?v=3"></script>
-<script src="js/game.js?v=3"></script>
+<script src="js/common.js?v=4"></script>
+<script src="js/locations.js?v=4"></script>
+<script src="js/maps.js?v=4"></script>
+<script src="js/pano.js?v=4"></script>
+<script src="js/net.js?v=4"></script>
+<script src="js/multi.js?v=4"></script>
+<script src="js/game.js?v=4"></script>
 </body>
 </html>
