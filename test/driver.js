@@ -33,6 +33,255 @@ async function hostPick(lat, lng){
   await tick();
 }
 
+
+/* ============================================================
+ * F. 網羅パターン（人数 × モード × ラウンド数の総当たり）
+ * ============================================================ */
+var GUESS_CLICK = 0, PICK_CLICK = 1;   // ensureMaps が作る順（推測地図 → 出題地図）
+var G = [], connById = {}, gameSeq = 0;
+
+function nearby(loc, off){
+  return { lat: Math.max(-85, Math.min(85, loc.lat + off)), lng: normLng(loc.lng + off) };
+}
+
+async function newGame(n, cfg){
+  Multi.leave(); await tick();
+  gameSeq++;
+  el("mp-name").value = "P1";
+  clickEl("btn-create-room"); runTimers(); await tick();
+
+  var peer = __peers[__peers.length - 1];
+  var handler = peer._h.connection[0];
+  G = []; connById = {};
+  for (var i = 2; i <= n; i++){
+    var c = new FakeConn("g" + gameSeq + "_" + i);
+    handler(c); c.fire("open");
+    guestSend(c, { t:"hello", name:"P" + i });
+    G.push(c); connById[c.peer] = c;
+    await tick();
+  }
+  setSeg("mode", cfg.mode);
+  if (cfg.mode === "all") setSeg("rounds", String(cfg.rounds));
+  else setSeg("laps", String(cfg.laps));
+  setSeg("timeLimit", String(cfg.timeLimit || 120));
+  await tick();
+}
+
+async function answerAll(st, skip){
+  var loc = st.location;
+  for (var i = 0; i < st.players.length; i++){
+    var p = st.players[i];
+    if (p.id === st.quizmasterId) continue;
+    if (skip && skip.indexOf(p.id) >= 0) continue;
+    var g = nearby(loc, (i + 1) * 0.7);
+    if (p.id === st.hostId){
+      __mapClicks[GUESS_CLICK]({ latlng:{ lat:g.lat, lng:g.lng } });
+      clickEl("btn-mguess");
+    } else {
+      guestSend(connById[p.id], { t:"guess", lat:g.lat, lng:g.lng });
+    }
+    await tick();
+  }
+}
+
+/** 1ゲームを最後まで進行し、診断情報を返す */
+async function playGame(n, cfg){
+  await newGame(n, cfg);
+  clickEl("btn-lobby-start"); await tick();
+
+  var qmCount = {}, rounds = [], locs = [], guard = 0, lastSt = null;
+  while (guard++ < 300){
+    var st = lastState(G[0]);
+    lastSt = st;
+    if (st.phase === "final") break;
+
+    if (st.phase === "picking"){
+      qmCount[st.quizmasterId] = (qmCount[st.quizmasterId] || 0) + 1;
+      var pt = { lat: (st.round * 7) % 70 - 35, lng: (st.round * 23) % 170 - 85 };
+      if (st.quizmasterId === st.hostId){
+        __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } });
+        await tick();
+        clickEl("btn-pick-ok");
+      } else {
+        guestSend(connById[st.quizmasterId], { t:"picked", lat:pt.lat, lng:pt.lng });
+      }
+      await tick();
+    }
+    else if (st.phase === "playing"){
+      locs.push(st.location.lat.toFixed(4) + "," + st.location.lng.toFixed(4));
+      await answerAll(st);
+    }
+    else if (st.phase === "result"){
+      rounds.push(st.results);
+      clickEl("btn-mnext");
+      await tick();
+    }
+    else { break; }
+  }
+  return { st:lastSt, qmCount:qmCount, rounds:rounds, locs:locs, loops:guard };
+}
+
+function verifyGame(label, n, cfg, r){
+  var st = r.st;
+  var expected = cfg.mode === "quiz" ? n * cfg.laps : cfg.rounds;
+
+  check(label + " 最終結果まで到達", st.phase === "final", st.phase + " (loops=" + r.loops + ")");
+  check(label + " ラウンド数 = " + expected, r.rounds.length === expected, r.rounds.length);
+  check(label + " 参加者 " + n + "人が全員残っている", st.players.length === n, st.players.length);
+
+  // 得点が有限か（NaN 混入の検出）
+  var finite = st.players.every(function(p){ return Number.isFinite(p.score) && p.score >= 0; });
+  check(label + " 全員の得点が有限で非負", finite, JSON.stringify(st.players.map(function(p){return p.score;})));
+
+  // ラウンド得点の合計 == 最終得点
+  var sum = {};
+  r.rounds.forEach(function(rs){ rs.forEach(function(x){ sum[x.id] = (sum[x.id] || 0) + x.score; }); });
+  var ok = st.players.every(function(p){ return (sum[p.id] || 0) === p.score; });
+  check(label + " ラウンド得点の合計 = 最終得点", ok,
+        JSON.stringify(st.players.map(function(p){ return p.name + ":" + p.score + "/" + (sum[p.id]||0); })));
+
+  if (cfg.mode === "quiz"){
+    // 出題役が全員に均等に回ったか
+    var counts = st.players.map(function(p){ return r.qmCount[p.id] || 0; });
+    var even = counts.every(function(c){ return c === cfg.laps; });
+    check(label + " 出題役が全員" + cfg.laps + "回ずつ", even, JSON.stringify(counts));
+
+    // 出題者はそのラウンド 0 点か
+    var qmZero = r.rounds.every(function(rs){
+      return rs.every(function(x){ return !x.quizmaster || x.score === 0; });
+    });
+    check(label + " 出題者はそのラウンド0点", qmZero);
+  } else {
+    // 同じ地点が二度出ないか
+    var uniq = {}, dup = false;
+    r.locs.forEach(function(l){ if (uniq[l]) dup = true; uniq[l] = 1; });
+    check(label + " 出題地点の重複なし", !dup, JSON.stringify(r.locs));
+  }
+}
+
+async function sectionF(){
+  say("");
+  say("━━━ F. 網羅パターン（人数 × モード × ラウンド数） ━━━");
+  var patterns = [
+    [2, { mode:"all",  rounds:3 }],
+    [3, { mode:"all",  rounds:5 }],
+    [4, { mode:"all",  rounds:5 }],
+    [4, { mode:"all",  rounds:10 }],
+    [2, { mode:"quiz", laps:1 }],
+    [2, { mode:"quiz", laps:3 }],
+    [3, { mode:"quiz", laps:1 }],
+    [3, { mode:"quiz", laps:2 }],
+    [4, { mode:"quiz", laps:1 }],
+    [4, { mode:"quiz", laps:2 }]
+  ];
+  for (var i = 0; i < patterns.length; i++){
+    var n = patterns[i][0], cfg = patterns[i][1];
+    var label = "[" + n + "人/" + (cfg.mode === "quiz" ? "出題者あり×" + cfg.laps + "周" : "全員回答" + cfg.rounds + "R") + "]";
+    var r = await playGame(n, cfg);
+    verifyGame(label, n, cfg, r);
+  }
+}
+
+/* ============================================================
+ * G. 時間切れ・不正入力・境界条件
+ * ============================================================ */
+async function sectionG(){
+  say("");
+  say("━━━ G. 時間切れ・不正入力 ━━━");
+
+  // --- 時間切れ ---
+  await newGame(3, { mode:"all", rounds:3, timeLimit:60 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = lastState(G[0]);
+  check("制限時間つきで deadline が配信される", typeof st.deadline === "number", String(st.deadline));
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });   // 1人だけ回答
+  await tick();
+  check("時間切れ前は playing のまま", lastState(G[0]).phase === "playing", lastState(G[0]).phase);
+  runTimers();                       // ホストの締め切りタイマーを発火
+  await tick();
+  st = lastState(G[0]);
+  check("★時間切れでラウンドが締まる", st.phase === "result", st.phase);
+  var answered = st.results.filter(function(r){ return r.guess; });
+  var noAns    = st.results.filter(function(r){ return !r.guess; });
+  check("時間切れ: 回答者は採点される", answered.length === 1 && answered[0].score === 5000, JSON.stringify(answered.map(function(r){return r.score;})));
+  check("時間切れ: 未回答は0点", noAns.length === 2 && noAns.every(function(r){ return r.score === 0; }));
+  check("時間切れ: 得点が NaN にならない", st.players.every(function(p){ return Number.isFinite(p.score); }));
+
+  // --- 不正な座標 ---
+  clickEl("btn-mnext"); await tick();
+  st = lastState(G[0]);
+  var bad = [
+    { lat:"あ",      lng:0        },
+    { lat:NaN,       lng:0        },
+    { lat:null,      lng:null     },
+    { lat:999,       lng:999      },
+    { lat:-1e308,    lng:1e308    },
+    { lat:Infinity,  lng:0        }
+  ];
+  for (var i = 0; i < bad.length; i++){
+    guestSend(G[0], { t:"guess", lat:bad[i].lat, lng:bad[i].lng });
+    await tick();
+  }
+  st = lastState(G[0]);
+  check("★不正な座標はすべて無視される", (st.answered || []).length === 0, JSON.stringify(st.answered));
+  check("不正入力後もフェーズは playing", st.phase === "playing", st.phase);
+
+  // 正常な回答は通る
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });
+  await tick();
+  check("不正入力の後でも正常な回答は受理される", (lastState(G[0]).answered || []).length === 1);
+
+  // --- 権限のないメッセージ ---
+  st = lastState(G[0]);
+  guestSend(G[1], { t:"picked", lat:0, lng:0 });          // 全員回答モードで出題を試みる
+  await tick();
+  check("★モード違いの picked は無視される",
+        Math.abs(lastState(G[0]).location.lat - st.location.lat) < 1e-9, "出題地点が書き換えられた");
+
+  // --- 出題者ありモードでの権限チェック ---
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:120 });
+  clickEl("btn-lobby-start"); await tick();
+  st = lastState(G[0]);
+  check("出題フェーズから開始", st.phase === "picking", st.phase);
+  var notQm = st.players.filter(function(p){ return p.id !== st.quizmasterId && p.id !== st.hostId; })[0];
+  if (notQm){
+    guestSend(connById[notQm.id], { t:"picked", lat:10, lng:10 });
+    await tick();
+    check("★出題者でない人の出題は無視される", lastState(G[0]).phase === "picking", lastState(G[0]).phase);
+  }
+  // 出題者が回答しようとしても無視される
+  var pt = { lat:35.0, lng:135.0 };
+  if (st.quizmasterId === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[st.quizmasterId], { t:"picked", lat:pt.lat, lng:pt.lng });
+  }
+  await tick();
+  st = lastState(G[0]);
+  if (st.quizmasterId !== st.hostId){
+    guestSend(connById[st.quizmasterId], { t:"guess", lat:35, lng:135 });
+    await tick();
+    check("★出題者自身の回答は無視される", (lastState(G[0]).answered || []).indexOf(st.quizmasterId) < 0);
+  }
+
+  // --- 名前の異常値 ---
+  await newGame(2, { mode:"all", rounds:3 });
+  var peer = __peers[__peers.length - 1];
+  var handler = peer._h.connection[0];
+  var weird = new FakeConn("weird_" + gameSeq);
+  handler(weird); weird.fire("open");
+  guestSend(weird, { t:"hello", name:"あ".repeat(500) });
+  await tick();
+  st = lastState(G[0]);
+  var longP = st.players.filter(function(p){ return p.id.indexOf("weird") === 0; })[0];
+  check("★長すぎる名前は12文字に切り詰められる", longP && longP.name.length === 12, longP ? longP.name.length : "見つからず");
+  var xss = new FakeConn("xss_" + gameSeq);
+  handler(xss); xss.fire("open");
+  guestSend(xss, { t:"hello", name:"<img src=x onerror=alert(1)>" });
+  await tick();
+  check("定員4人を超える参加は拒否される", lastState(G[0]).players.length <= 4, lastState(G[0]).players.length);
+}
+
 async function main(){
   Multi.init();
 
@@ -68,9 +317,9 @@ async function main(){
   check("回答者が揃うまで result にならない", st.phase === "playing", st.phase);
   check("★他人の回答内容はまだ配信されない", st.results === null);
 
-  guestSend(g2, { t:"guess", lat:loc.lat + 20, lng:loc.lng + 20 }); // 遠い
+  guestSend(g2, { t:"guess", lat:nearby(loc, 20).lat, lng:nearby(loc, 20).lng }); // 遠い
   await tick();
-  await hostGuess(loc.lat + 1, loc.lng + 1);                        // そこそこ近い
+  await hostGuess(nearby(loc, 1).lat, nearby(loc, 1).lng);                        // そこそこ近い
 
   st = lastState(g1);
   check("全員回答でラウンド終了 (phase=result)", st.phase === "result", st.phase);
@@ -91,9 +340,9 @@ async function main(){
     check("ラウンド" + r + "が開始", st.phase === "playing" && st.round === r, st.phase + "/" + st.round);
     loc = st.location;
     guestSend(g1, { t:"guess", lat:loc.lat, lng:loc.lng });
-    guestSend(g2, { t:"guess", lat:loc.lat + 5, lng:loc.lng + 5 });
+    guestSend(g2, { t:"guess", lat:nearby(loc, 5).lat, lng:nearby(loc, 5).lng });
     await tick();
-    await hostGuess(loc.lat + 2, loc.lng + 2);
+    await hostGuess(nearby(loc, 2).lat, nearby(loc, 2).lng);
     st = lastState(g1);
     check("ラウンド" + r + "が集計された", st.phase === "result", st.phase);
   }
@@ -185,7 +434,7 @@ async function main(){
   st = lastState(g1);
   loc = st.location;
   guestSend(g1, { t:"guess", lat:loc.lat, lng:loc.lng });
-  guestSend(g1, { t:"guess", lat:loc.lat + 40, lng:loc.lng + 40 });  // 2回目は無効のはず
+  guestSend(g1, { t:"guess", lat:nearby(loc, 40).lat, lng:nearby(loc, 40).lng });  // 2回目は無効のはず
   await tick();
   st = lastState(g1);
   check("★同じ人の二重回答は無視される", st.answered.length === 1, JSON.stringify(st.answered));
@@ -198,10 +447,13 @@ async function main(){
   check("切断したプレイヤーは connected=false", p2 && p2.connected === false,
         JSON.stringify(st.players));
   check("切断が即座に全員へ配信される", st.phase === "playing", st.phase);
-  await hostGuess(loc.lat + 3, loc.lng + 3);
+  await hostGuess(nearby(loc, 3).lat, nearby(loc, 3).lng);
   st = lastState(g1);
   check("残った2人で集計されラウンドが進む", st.phase === "result", st.phase);
   check("切断者は集計対象から外れる", st.results.length === 2, st.results.length);
+  var g1res = st.results.filter(function(r){ return r.id === "g1"; })[0];
+  check("★二重回答されても最初の回答が採用される（後勝ちにならない）",
+        g1res && g1res.score === 5000, g1res ? g1res.score : "結果なし");
 
   // 回答者が全員抜けても進行が止まらないこと
   clickEl("btn-mnext"); await tick();
@@ -217,11 +469,13 @@ async function main(){
   say("━━━ E. ソロプレイの回帰確認 ━━━");
   Net.close();
   Pano.init(el("pano"));            // 本番では DOMContentLoaded で実行される
-  S.settings.rounds = 2; S.settings.timeLimit = 0; S.settings.region = "world";
+  S.settings.rounds = 2; S.settings.timeLimit = 300; S.settings.region = "world";
   var base = __mapClicks.length;
   await startGame(); await tick();
   check("ソロ: ゲーム画面になる", activeScreen() === "screen-game", activeScreen());
   check("ソロ: HUDにラウンド表示", el("hud-round").textContent === "1 / 2", el("hud-round").textContent);
+  check("ソロ: 制限時間5分が表示される", el("hud-timer").textContent === "5:00", el("hud-timer").textContent);
+  check("ソロ: タイマー枠が表示される", el("hud-timer-box").hidden === false);
   var target = S.locs[0];
   __mapClicks[base]({ latlng:{ lat:target.lat, lng:target.lng } });
   check("ソロ: ピンを置くとボタンが有効", el("btn-guess").disabled === false);
@@ -232,12 +486,15 @@ async function main(){
   await nextRound(); await tick();
   check("ソロ: ラウンド2へ", el("hud-round").textContent === "2 / 2", el("hud-round").textContent);
   var t2 = S.locs[1];
-  __mapClicks[base]({ latlng:{ lat:t2.lat + 10, lng:t2.lng + 10 } });
+  __mapClicks[base]({ latlng:{ lat:nearby(t2, 10).lat, lng:nearby(t2, 10).lng } });
   submitGuess(false); await tick();
   await nextRound(); await tick();
   check("ソロ: 最終結果へ", activeScreen() === "screen-final", activeScreen());
   check("ソロ: 満点表示が 10000", el("fin-max").textContent === "/ 10,000", el("fin-max").textContent);
   check("ソロ: 合計が加算されている", el("fin-total").textContent !== "0", el("fin-total").textContent);
+
+  await sectionF();
+  await sectionG();
 
   say("");
   say("════════════════════════════════");

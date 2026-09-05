@@ -5,7 +5,7 @@ const KEY_API  = "gg_api_key";
 const KEY_BEST = "gg_best_scores";
 
 const S = {
-  settings:{ rounds:5, region:"world", difficulty:"all", timeLimit:0 },
+  settings:{ rounds:5, region:"world", difficulty:"all", timeLimit:300 },
   rules:{ move:true, pan:true, zoom:true },
   locs:[], idx:0, total:0, results:[], guess:null,
   timerId:null, remain:0, locked:false, mapReady:false

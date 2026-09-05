@@ -106,12 +106,16 @@ const Multi = (() => {
     else if (msg.t === "guess" && H.phase === "playing"){
       if (from === H.quizmasterId) return;                   // 出題者は回答しない
       if (H.guesses[from]) return;                           // 二重回答を防ぐ
-      H.guesses[from] = { lat:Number(msg.lat), lng:Number(msg.lng) };
+      const g = parseLatLng(msg.lat, msg.lng);
+      if (!g) return;                                        // 壊れた座標は捨てる
+      H.guesses[from] = g;
       hSync();
       hMaybeEndRound();
     }
     else if (msg.t === "picked" && H.phase === "picking" && from === H.quizmasterId){
-      hStartPlaying({ lat:Number(msg.lat), lng:Number(msg.lng) });
+      const loc = parseLatLng(msg.lat, msg.lng);
+      if (!loc) return;
+      hStartPlaying(loc);
     }
   }
 
@@ -238,6 +242,7 @@ const Multi = (() => {
         $("pick-wait-name").textContent = qm ? qm.name : "出題者";
       } else if (changedRound){
         C.pick = null;
+        C.pickResolved = null;                 // 前ラウンドの選択を持ち越さない
         $("pick-card").hidden = true;
         ensureMaps();
         C.maps.pick.reset();
@@ -255,6 +260,7 @@ const Multi = (() => {
 
     if (changedRound){
       C.guess = null;
+      C.pending = null;                        // 前ラウンドのピンを持ち越さない
       const b = $("btn-mguess");
       b.disabled = true;
       b.textContent = "地図にピンを置いてください";
@@ -341,6 +347,7 @@ const Multi = (() => {
   /* ---------- 各画面の描画 ---------- */
   function renderLobby(){
     const st = C.st;
+    stopTick();
     showScreen("screen-lobby");
     $("lobby-code").textContent = Net.roomCode;
 
@@ -362,8 +369,9 @@ const Multi = (() => {
 
     if (!isHost()){
       const modeName = st.mode === "quiz" ? "出題者あり" : "全員が回答者";
+      const tl = st.settings.timeLimit;
       $("lobby-guest-info").textContent =
-        `モード：${modeName} ／ 制限時間：${st.settings.timeLimit ? st.settings.timeLimit + "秒" : "無制限"}`;
+        `モード：${modeName} ／ 制限時間：${tl ? tl / 60 + "分" : "無制限"}`;
     }
     syncQuizRoundLabel();
   }

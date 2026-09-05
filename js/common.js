@@ -41,6 +41,23 @@ function escapeHtml(s){
     ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 }
 
+/**
+ * 受信した値を座標として厳密に解釈する。不正なら null を返す。
+ * Number(null) が 0 になる等の暗黙変換を避けるため、数値か数字文字列のみ受け付ける。
+ * （これを怠ると壊れたメッセージが (0,0) の回答として通ってしまう）
+ */
+function parseLatLng(rawLat, rawLng){
+  const num = v => {
+    if (typeof v === "number") return v;
+    if (typeof v === "string" && v.trim() !== "") return Number(v);
+    return NaN;                       // null / undefined / 真偽値 / オブジェクトは拒否
+  };
+  const lat = num(rawLat), lng = num(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
 /* 部屋コード生成（紛らわしい文字を除外） */
 function makeRoomCode(len){
   const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

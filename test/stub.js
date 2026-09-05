@@ -7,6 +7,13 @@ function check(label, cond, extra){
   else { __fail++; say("  ❌ " + label + (extra ? "  → " + extra : "")); }
 }
 
+/* --- 決定論的な乱数（失敗を再現できるようにする） --- */
+var __seed = 20260905;
+Math.random = function(){
+  __seed = (__seed * 1103515245 + 12345) & 0x7fffffff;
+  return __seed / 0x7fffffff;
+};
+
 /* --- タイマー（手動実行） --- */
 var __timers = [], __tid = 0;
 var setTimeout  = function(fn, ms){ __timers.push({ id:++__tid, fn:fn }); return __tid; };
