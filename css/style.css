@@ -589,20 +589,21 @@ button{font-family:inherit}
 .fx.img-mode .fx-flash,
 .fx.img-mode .fx-rays,
 .fx.img-mode .fx-text{display:none}
-.fx.img-mode.play #fx-img1{animation:fximg1 10s linear both}
-.fx.img-mode.play #fx-img2{animation:fximg2 10s linear both}
+/* 前半1秒が1枚目、後半1秒が2枚目。1秒あたりで重ねて滑らかに入れ替える */
+.fx.img-mode.play #fx-img1{animation:fximg1 2s linear both}
+.fx.img-mode.play #fx-img2{animation:fximg2 2s linear both}
 @keyframes fximg1{
   0%  {opacity:0;transform:scale(1.14)}
-  3%  {opacity:1}
-  45% {opacity:1;transform:scale(1.02)}
-  55% {opacity:0;transform:scale(1.00)}
+  8%  {opacity:1}
+  40% {opacity:1;transform:scale(1.04)}
+  60% {opacity:0;transform:scale(1.00)}
   100%{opacity:0}
 }
 @keyframes fximg2{
   0%  {opacity:0;transform:scale(1.12)}
-  45% {opacity:0;transform:scale(1.09)}
-  55% {opacity:1;transform:scale(1.06)}
-  96% {opacity:1;transform:scale(1.00)}
+  40% {opacity:0;transform:scale(1.10)}
+  60% {opacity:1;transform:scale(1.06)}
+  88% {opacity:1;transform:scale(1.00)}
   100%{opacity:0}
 }
 

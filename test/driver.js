@@ -623,12 +623,21 @@ async function sectionJ(){
   guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });
   await tick();
   st = latestState();
-  // 回答すると演出（10秒）の分だけ締め切りが後ろにずれる
-  check("★J3 経過分が引かれ、演出の分だけ延びる", st.remainMs === 50000, st.remainMs);
+  // 回答すると演出（2秒）の分だけ締め切りが後ろにずれ、その分だけ止めて表示する
+  check("★J3 経過分が引かれ、演出の分だけ延びる", st.remainMs === 42000, st.remainMs);
+  check("★J3 止めている残り時間も配信される", st.freezeMs === 2000, st.freezeMs);
   runIntervals();
   check("J3 再配信後も表示が巻き戻らない", el("m-timer").textContent === "0:40", el("m-timer").textContent);
 
-  advanceClock(45000);
+  // ここが不具合の本体：演出のあいだ表示が動いてはいけない
+  advanceClock(1000); runIntervals();
+  check("★J3 演出の途中でタイマーが止まっている", el("m-timer").textContent === "0:40", el("m-timer").textContent);
+  advanceClock(1000); runIntervals();
+  check("★J3 演出が明けた瞬間も同じ残り時間", el("m-timer").textContent === "0:40", el("m-timer").textContent);
+  advanceClock(1000); runIntervals();
+  check("★J3 演出が明けたら再び進み出す", el("m-timer").textContent === "0:39", el("m-timer").textContent);
+
+  advanceClock(34000);
   runIntervals();
   check("J3 残り10秒以下で警告表示になる",
         el("m-timer").textContent === "0:05" && el("m-timer").classList.contains("warn"),
@@ -1212,8 +1221,8 @@ async function sectionN(){
   check("★N 回答した人の名前が出る", nm.textContent === "P2", nm.textContent);
   check("N アニメーション用のクラスが付く", box.classList.contains("play"));
 
-  runTimers(12000);                              // 演出の10秒だけ進める
-  check("★N 10秒で消える", box.hidden === true, box.hidden);
+  runTimers(3000);                               // 演出の2秒だけ進める
+  check("★N 2秒で消える", box.hidden === true, box.hidden);
   check("N クラスも外れる", box.classList.contains("play") === false);
 
   /* --- 自分の回答では出ない --- */
@@ -1223,32 +1232,30 @@ async function sectionN(){
   check("★N 自分の回答では出ない", nm.textContent === "（変化なし）" && box.hidden === true,
         nm.textContent + " / hidden=" + box.hidden);
 
-  /* --- 同じ人の再配信では二度出ない --- */
+  /* --- 最後の1人の回答では出さない（そのままラウンドが終わるため） --- */
+  nm.textContent = "（変化なし）";
   guestSend(G[1], { t:"guess", lat:nearby(loc,2).lat, lng:nearby(loc,2).lng }); await tick();
-  check("★N 次に回答した人の名前に変わる", nm.textContent === "P3", nm.textContent);
-
-  /* --- ラウンドが終わったら消える --- */
   st = latestState();
   check("N 全員回答でラウンドが終わった", st.phase === "result", st.phase);
-  // 最後に答えた人のアナウンスを消してしまうと一度も表示されないので、
-  // ラウンドが終わっても途中で打ち切らず流し切る
-  check("★N ラウンドが終わってもアナウンスは流し切る", box.hidden === false, box.hidden);
-  runTimers(12000);
-  check("★N 10秒後に自然に消える", box.hidden === true, box.hidden);
+  check("★N 最後の回答では演出を出さない",
+        box.hidden === true && nm.textContent === "（変化なし）",
+        "hidden=" + box.hidden + " 名前=" + nm.textContent);
 
-  /* --- 相手が最後に回答した場合（2人対戦でよく起きる） --- */
+  /* --- 2人対戦で相手が最後に答えた場合も同じ --- */
   await newGame(2, { mode:"all", rounds:5, timeLimit:600 });
   clickEl("btn-lobby-start"); await tick();
   st = latestState(); loc = st.location;
-  nm.textContent = "";
+  nm.textContent = "（変化なし）";
   // 自分が先に答え、相手が最後に答える
   __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,1).lat, lng:nearby(loc,1).lng } });
   clickEl("btn-mguess"); await tick();
   guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
-  check("★N 相手が最後に回答してもアナウンスが出る",
-        nm.textContent === "P2" && box.hidden === false,
-        "名前=" + nm.textContent + " hidden=" + box.hidden);
-  runTimers(12000);
+  check("★N 2人対戦でも最後の回答では出ない",
+        box.hidden === true && nm.textContent === "（変化なし）",
+        "hidden=" + box.hidden + " 名前=" + nm.textContent);
+  check("★N 最後の回答ではタイマーも延ばさない",
+        latestState().freezeMs === 0 || latestState().phase === "result",
+        latestState().phase + " / " + latestState().freezeMs);
 
   /* --- 出題者ありモードでも出る --- */
   await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
@@ -1267,7 +1274,7 @@ async function sectionN(){
   guestSend(connById[other.id], { t:"guess", lat:41.89, lng:12.49 }); await tick();
   check("★N 出題者ありモードでも出る", nm.textContent === other.name && box.hidden === false,
         nm.textContent + " / hidden=" + box.hidden);
-  runTimers(12000);
+  runTimers(3000);
 
   /* --- 効果音のオンオフが保存される --- */
   Fx.setSound(false);
@@ -1288,7 +1295,7 @@ async function sectionN(){
   check("★N 打ち切り直後の新しいアナウンスも表示される",
         box.hidden === false && nm.textContent === "P3",
         "hidden=" + box.hidden + " 名前=" + nm.textContent);
-  runTimers(12000);
+  runTimers(3000);
   check("★N 古いタイマーで消されない", true);
 
   /* --- 退出したら打ち切る --- */

@@ -173,10 +173,13 @@ const Multi = (() => {
     if (!g) return false;                        // 壊れた座標は捨てる
     H.guesses[id] = g;
     H.answerOrder.push(id);                      // 到着順はホストが記録する
-    // 回答の演出が流れている間はタイマーを止める。
-    // 全員の締め切りを演出の長さだけ後ろにずらすことで実現する。
-    if (H.deadline && H.players.filter(p => p.connected).length > 1){
-      H.deadline += Fx.duration();
+    // 演出で画面が隠れている間はタイマーを止める。
+    // 止める長さはホストが決めて全員に配る（端末ごとに計算すると食い違うため）。
+    // 最後の1人の回答はこの直後にラウンドを終わらせるので、演出も停止もしない。
+    if (H.deadline && !hAllAnswered()){
+      const now = Date.now();
+      H.freezeUntil = Math.max(now, H.freezeUntil || 0) + Fx.duration();
+      H.deadline   += Fx.duration();
       if (H.timer) clearTimeout(H.timer);
       H.timer = setTimeout(() => hEndRound(), Math.max(0, H.deadline - Date.now()) + 500);
     }
@@ -218,7 +221,7 @@ const Multi = (() => {
     H.answerOrder = [];              // 早押しボーナス用に回答の到着順を持つ
     H.skipVotes = [];
     H.location = null;
-    H.deadline = null;
+    H.deadline = null; H.freezeUntil = 0;
     H.results = null;
 
     if (H.round > H.totalRounds){ H.phase = "final"; hSync(); return; }
@@ -239,6 +242,7 @@ const Multi = (() => {
     H.location = loc;
     H.phase = "playing";
     H.deadline = H.settings.timeLimit ? Date.now() + H.settings.timeLimit * 1000 : null;
+    H.freezeUntil = 0;
     hSync();
     if (H.deadline){
       H.timer = setTimeout(() => hEndRound(), H.settings.timeLimit * 1000 + 500);
@@ -292,7 +296,7 @@ const Multi = (() => {
     H.guesses = {};
     H.answerOrder = [];
     H.skipVotes = [];
-    H.deadline = null;
+    H.deadline = null; H.freezeUntil = 0;
     if (H.mode === "quiz"){
       H.location = null;
       H.phase = "picking";                           // 出題者が選び直す
@@ -303,13 +307,22 @@ const Multi = (() => {
   }
 
   /** 回答者全員が回答済みならラウンドを締める */
+  /** 回答すべき人（出題者を除く、接続中の人） */
+  function hAnswerers(){
+    return H.players.filter(p => p.connected && p.id !== H.quizmasterId);
+  }
+  /** 回答者が全員答え終わったか。1人も居ないときは false */
+  function hAllAnswered(){
+    const a = hAnswerers();
+    return a.length > 0 && a.every(p => H.guesses[p.id]);
+  }
+
   function hMaybeEndRound(){
     if (H.phase !== "playing") return;
     // バックグラウンドのタブでは setTimeout が遅延するため、ここでも締め切りを見る
     if (H.deadline && Date.now() >= H.deadline){ hEndRound(); return; }
-    const answerers = H.players.filter(p => p.connected && p.id !== H.quizmasterId);
-    if (!answerers.length){ hEndRound(); return; }          // 回答者が全員抜けた
-    if (answerers.every(p => H.guesses[p.id])) hEndRound();
+    if (!hAnswerers().length){ hEndRound(); return; }       // 回答者が全員抜けた
+    if (hAllAnswered()) hEndRound();
   }
 
   function hEndRound(){
@@ -324,7 +337,7 @@ const Multi = (() => {
       if (p) p.score += r.score;
     });
     H.phase = "result";
-    H.deadline = null;
+    H.deadline = null; H.freezeUntil = 0;
     hSync();
   }
 
@@ -347,7 +360,9 @@ const Multi = (() => {
       results: showAnswer ? H.results : null,
       // 端末ごとに時計がずれているため、締め切りを絶対時刻で配ると
       // そのズレがそのまま残り時間の差になる。「あと何ミリ秒か」を配る。
-      remainMs: H.deadline ? Math.max(0, H.deadline - Date.now()) : null
+      remainMs: H.deadline ? Math.max(0, H.deadline - Date.now()) : null,
+      // 演出のあいだタイマーを止める。残り時間からこの分を引いて表示する
+      freezeMs: Math.max(0, (H.freezeUntil || 0) - Date.now())
     };
   }
 
@@ -367,6 +382,7 @@ const Multi = (() => {
     // 受け取った残り時間を、自分の時計での締め切りに変換する。
     // 状態は頻繁に配信されるので、その都度ズレなく再同期される。
     C.deadline = (st.remainMs == null) ? null : Date.now() + st.remainMs;
+    C.freezeUntil = Date.now() + (st.freezeMs || 0);
 
     const changedRound = !prev || prev.round !== st.round || prev.phase !== st.phase;
     // スキップはラウンド番号もフェーズも変えずに場所だけ差し替える。
@@ -376,14 +392,20 @@ const Multi = (() => {
                        prev.location.lng !== st.location.lng);
     const needReload = changedRound || movedLoc;
 
-    // 相手が回答した瞬間を全画面で知らせる（自分の回答では出さない）
+    // 相手が回答した瞬間を全画面で知らせる（自分の回答では出さない）。
+    // 全員が答え終わった＝そのままラウンドが終わるので、最後の回答では出さない。
     if (st.phase === "playing" && prev && prev.phase === "playing" && prev.round === st.round){
-      const before = prev.answered || [];
-      (st.answered || []).forEach(id => {
-        if (before.indexOf(id) >= 0 || id === me()) return;
-        const p = st.players.find(x => x.id === id);
-        if (p) Fx.announce(p.name);
-      });
+      const answered = st.answered || [];
+      const rest = st.players.filter(p => p.connected && p.id !== st.quizmasterId)
+                             .filter(p => answered.indexOf(p.id) < 0);
+      if (rest.length){
+        const before = prev.answered || [];
+        answered.forEach(id => {
+          if (before.indexOf(id) >= 0 || id === me()) return;
+          const p = st.players.find(x => x.id === id);
+          if (p) Fx.announce(p.name);
+        });
+      }
     }
 
     if (st.phase === "lobby"){ renderLobby(); return; }
@@ -695,8 +717,10 @@ const Multi = (() => {
       const box = $("m-timer-box");
       if (C.deadline == null){ box.hidden = true; return; }
       box.hidden = false;
-      // 演出が流れている分を差し引くと、見た目上はその間だけ止まって見える
-      const left = Math.ceil((C.deadline - Date.now() - Fx.remainingMs()) / 1000);
+      // 演出で止めている分を差し引くと、見た目上はその間だけ止まって見える
+      const now = Date.now();
+      const freeze = Math.max(0, (C.freezeUntil || 0) - now);
+      const left = Math.ceil((C.deadline - now - freeze) / 1000);
       $("m-timer").textContent = fmtTime(left);
       $("m-timer").classList.toggle("warn", left <= 10);
     };

@@ -6,14 +6,14 @@
  * ============================================================ */
 const Fx = (() => {
   const KEY_SOUND = "gg_sound";
-  const SHOW_MS   = 10000;        // 演出を出している時間（音の長さに合わせる）
-  // 前半5秒 → rokkonshojo_1（赤い「六根清浄」）、後半5秒 → rokkonshojo_2（緑の紋章）
+  const SHOW_MS   = 2000;         // 画面に出している時間。音より短く、裏で音だけ残す
+  // 前半1秒 → rokkonshojo_1（赤い「六根清浄」）、後半1秒 → rokkonshojo_2（緑の紋章）
   // 高解像度版に差し替えたときに拡張子が変わっても拾えるよう、候補を順に試す
   const IMAGES = [
     ["rokkonshojo_1.png", "rokkonshojo_1.jpg", "rokkonshojo_1.webp"],
     ["rokkonshojo_2.jpg", "rokkonshojo_2.png", "rokkonshojo_2.webp"]
   ];
-  const CLIP_URL  = "rokkonshojo.mp3";
+  const CLIP_URL  = "rokkonshojo.mp3?v=29";  // 差し替え時にキャッシュを更新させる
   const CLIP_SEC  = 10;           // 音を流す長さ
   const FADE_SEC  = 1.5;          // 終わりのフェードアウト
   let queue = [], showing = false, ctx = null, hideTimer = null;
@@ -229,9 +229,6 @@ const Fx = (() => {
       cb.checked = soundOn();
       cb.addEventListener("change", () => setSound(cb.checked));
     }
-    // 1人でも演出と音を確かめられるようにしておく
-    const test = $("btn-fx-test");
-    if (test) test.addEventListener("click", () => { unlock(); announce("テスト"); });
   }
 
   /** ゲームから抜けるときなど、鳴っている音も止めたいとき */
