@@ -232,7 +232,7 @@ async function sectionG(){
   await newGame(3, { mode:"all", rounds:3, timeLimit:60 });
   clickEl("btn-lobby-start"); await tick();
   var st = lastState(G[0]);
-  check("制限時間つきで deadline が配信される", typeof st.deadline === "number", String(st.deadline));
+  check("制限時間つきで残り時間が配信される", typeof st.remainMs === "number", String(st.remainMs));
   guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });   // 1人だけ回答
   await tick();
   check("時間切れ前は playing のまま", lastState(G[0]).phase === "playing", lastState(G[0]).phase);
@@ -582,6 +582,68 @@ async function sectionI(){
   check("I5 ソロと対戦の両方の地図に反映される", both);
 }
 
+
+/* ============================================================
+ * J. 制限時間の同期（端末ごとの時計のズレ）
+ * ============================================================ */
+async function sectionJ(){
+  say("");
+  say("━━━ J. 制限時間の同期 ━━━");
+
+  /* --- J-1: 配信されるのは絶対時刻ではなく残り時間 --- */
+  await newGame(3, { mode:"all", rounds:3, timeLimit:60 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState();
+  check("★J1 締め切りを絶対時刻で配信していない", st.deadline === undefined, String(st.deadline));
+  check("★J1 残り時間(ミリ秒)を配信している", st.remainMs === 60000, st.remainMs);
+
+  /* --- J-2: カウントダウンの表示 --- */
+  runIntervals();
+  check("★J2 開始直後から残り時間が表示される", el("m-timer").textContent === "1:00", el("m-timer").textContent);
+  check("J2 タイマー枠が表示される", el("m-timer-box").hidden === false);
+
+  advanceClock(20000);
+  runIntervals();
+  check("★J2 時間の経過が表示に反映される", el("m-timer").textContent === "0:40", el("m-timer").textContent);
+
+  /* --- J-3: 途中の再配信で巻き戻らない --- */
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });
+  await tick();
+  st = latestState();
+  check("★J3 再配信される残り時間から経過分が引かれている", st.remainMs === 40000, st.remainMs);
+  runIntervals();
+  check("J3 再配信後も表示が巻き戻らない", el("m-timer").textContent === "0:40", el("m-timer").textContent);
+
+  advanceClock(35000);
+  runIntervals();
+  check("J3 残り10秒以下で警告表示になる",
+        el("m-timer").textContent === "0:05" && el("m-timer").classList.contains("warn"),
+        el("m-timer").textContent);
+
+  /* --- J-4: 時計がずれた端末での見え方（今回の不具合そのもの） --- */
+  // 参加者の時計がホストより5分進んでいる状況を数値で再現する
+  var hostNow = 1000000, limitMs = 60000, skew = 300000;
+  var hostDeadline = hostNow + limitMs;          // ホストの時計での締め切り
+  var guestNow     = hostNow + skew;             // 参加者の時計（5分進んでいる）
+
+  // 旧方式：ホストの絶対時刻を、参加者が自分の時計と比べていた
+  var oldWay = Math.ceil((hostDeadline - guestNow) / 1000);
+  // 新方式：残り時間を受け取り、参加者が自分の時計で締め切りを組み立て直す
+  var remainMs   = hostDeadline - hostNow;
+  var guestLimit = guestNow + remainMs;
+  var newWay = Math.ceil((guestLimit - guestNow) / 1000);
+
+  check("★J4 旧方式では時計のズレがそのまま誤差になっていた", oldWay === -240, oldWay + "秒");
+  check("★J4 新方式なら時計がずれていても正しい残り時間になる", newWay === 60, newWay + "秒");
+
+  /* --- J-5: 結果画面ではタイマーが止まる --- */
+  st = latestState();
+  await answerAll(st);
+  st = latestState();
+  check("J5 ラウンド終了で残り時間の配信が止まる", st.remainMs === null || st.phase === "result",
+        st.phase + " / " + st.remainMs);
+}
+
 async function main(){
   Multi.init();
 
@@ -797,6 +859,7 @@ async function main(){
   await sectionG();
   await sectionH();
   await sectionI();
+  await sectionJ();
 
   say("");
   say("════════════════════════════════");

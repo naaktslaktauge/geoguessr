@@ -204,6 +204,8 @@ const Multi = (() => {
   /** 回答者全員が回答済みならラウンドを締める */
   function hMaybeEndRound(){
     if (H.phase !== "playing") return;
+    // バックグラウンドのタブでは setTimeout が遅延するため、ここでも締め切りを見る
+    if (H.deadline && Date.now() >= H.deadline){ hEndRound(); return; }
     const answerers = H.players.filter(p => p.connected && p.id !== H.quizmasterId);
     if (!answerers.length){ hEndRound(); return; }          // 回答者が全員抜けた
     if (answerers.every(p => H.guesses[p.id])) hEndRound();
@@ -239,7 +241,9 @@ const Multi = (() => {
         : null,
       answered: Object.keys(H.guesses),
       results: showAnswer ? H.results : null,
-      deadline: H.deadline
+      // 端末ごとに時計がずれているため、締め切りを絶対時刻で配ると
+      // そのズレがそのまま残り時間の差になる。「あと何ミリ秒か」を配る。
+      remainMs: H.deadline ? Math.max(0, H.deadline - Date.now()) : null
     };
   }
 
@@ -256,6 +260,9 @@ const Multi = (() => {
     if (!st || !st.phase) return;
     const prev = C.st;
     C.st = st;
+    // 受け取った残り時間を、自分の時計での締め切りに変換する。
+    // 状態は頻繁に配信されるので、その都度ズレなく再同期される。
+    C.deadline = (st.remainMs == null) ? null : Date.now() + st.remainMs;
 
     const changedRound = !prev || prev.round !== st.round || prev.phase !== st.phase;
 
@@ -512,15 +519,16 @@ const Multi = (() => {
   /* ---------- 制限時間のカウントダウン ---------- */
   function startTick(){
     stopTick();
-    C.tickId = setInterval(() => {
-      const st = C.st;
+    const tick = () => {
       const box = $("m-timer-box");
-      if (!st || !st.deadline){ box.hidden = true; return; }
+      if (C.deadline == null){ box.hidden = true; return; }
       box.hidden = false;
-      const left = Math.ceil((st.deadline - Date.now()) / 1000);
+      const left = Math.ceil((C.deadline - Date.now()) / 1000);
       $("m-timer").textContent = fmtTime(left);
       $("m-timer").classList.toggle("warn", left <= 10);
-    }, 250);
+    };
+    tick();                       // 待たずにすぐ表示する
+    C.tickId = setInterval(tick, 250);
   }
   function stopTick(){ if (C.tickId){ clearInterval(C.tickId); C.tickId = null; } }
 

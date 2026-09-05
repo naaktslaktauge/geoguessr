@@ -14,13 +14,19 @@ Math.random = function(){
   return __seed / 0x7fffffff;
 };
 
+/* --- 時計（手動で進める。端末間のズレを検証するため） --- */
+var __now = 1770000000000;
+Date.now = function(){ return __now; };
+function advanceClock(ms){ __now += ms; }
+
 /* --- タイマー（手動実行） --- */
-var __timers = [], __tid = 0;
+var __timers = [], __intervals = [], __tid = 0;
 var setTimeout  = function(fn, ms){ __timers.push({ id:++__tid, fn:fn }); return __tid; };
-var setInterval = function(fn, ms){ return ++__tid; };          // 定期実行は使わない
-var clearTimeout  = function(id){ __timers = __timers.filter(function(t){ return t.id !== id; }); };
-var clearInterval = clearTimeout;
+var setInterval = function(fn, ms){ __intervals.push({ id:++__tid, fn:fn }); return __tid; };
+var clearTimeout  = function(id){ __timers    = __timers.filter(function(t){ return t.id !== id; }); };
+var clearInterval = function(id){ __intervals = __intervals.filter(function(t){ return t.id !== id; }); };
 function runTimers(){ var q = __timers; __timers = []; q.forEach(function(t){ t.fn(); }); }
+function runIntervals(){ __intervals.slice().forEach(function(t){ t.fn(); }); }
 async function tick(n){ for (var i = 0; i < (n || 12); i++) await Promise.resolve(); }
 
 /* --- DOM --- */
