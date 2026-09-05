@@ -1090,6 +1090,37 @@ async function sectionM(){
         resultOf(st,"P2").bonus === 250 && resultOf(st,"P1").bonus === 0,
         resultOf(st,"P2").bonus + " / " + resultOf(st,"P1").bonus);
 
+  /* --- M-10: ホストが先に答えたときも順位が正しい --- */
+  // これまでのテストはホストが常に最後に答えていたため、
+  // ホストの回答が順番に記録されていない不具合を見逃していた
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  setBonus(300, 150, 50); await tick();
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  // ホスト → P2 → P3 の順に回答する
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:loc.lat, lng:loc.lng } });
+  clickEl("btn-mguess"); await tick();
+  check("M10 ホストの回答が即座に反映される", (latestState().answered || []).length === 1,
+        JSON.stringify(latestState().answered));
+  guestSend(G[0], { t:"guess", lat:nearby(loc,1).lat, lng:nearby(loc,1).lng }); await tick();
+  guestSend(G[1], { t:"guess", lat:nearby(loc,2).lat, lng:nearby(loc,2).lng }); await tick();
+  st = latestState();
+  check("★M10 1着のホストに +300", resultOf(st,"P1").bonus === 300, resultOf(st,"P1").bonus);
+  check("★M10 2着の P2 に +150", resultOf(st,"P2").bonus === 150, resultOf(st,"P2").bonus);
+  check("★M10 3着の P3 に +50",  resultOf(st,"P3").bonus === 50,  resultOf(st,"P3").bonus);
+
+  /* --- M-11: ホストが真ん中の順位でも正しい --- */
+  clickEl("btn-mnext"); await tick();
+  st = latestState(); loc = st.location;
+  guestSend(G[1], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();          // P3 が1着
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,1).lat, lng:nearby(loc,1).lng } });
+  clickEl("btn-mguess"); await tick();                                             // ホストが2着
+  guestSend(G[0], { t:"guess", lat:nearby(loc,2).lat, lng:nearby(loc,2).lng }); await tick();
+  st = latestState();
+  check("★M11 1着は P3", resultOf(st,"P3").bonus === 300, resultOf(st,"P3").bonus);
+  check("★M11 2着はホスト", resultOf(st,"P1").bonus === 150, resultOf(st,"P1").bonus);
+  check("★M11 3着は P2", resultOf(st,"P2").bonus === 50, resultOf(st,"P2").bonus);
+
   /* --- M-8: 誰が回答したかが即座に反映される --- */
   await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
   clickEl("btn-lobby-start"); await tick();

@@ -147,24 +147,41 @@ const Multi = (() => {
       H.players.push({ id:from, name, token, score:0, connected:true });
       hSync();
     }
-    else if (msg.t === "guess" && H.phase === "playing"){
-      if (from === H.quizmasterId) return;                   // 出題者は回答しない
-      if (H.guesses[from]) return;                           // 二重回答を防ぐ
-      const g = parseLatLng(msg.lat, msg.lng);
-      if (!g) return;                                        // 壊れた座標は捨てる
-      H.guesses[from] = g;
-      H.answerOrder.push(from);      // 到着順はホストが記録する（自己申告だと詐称できる）
+    else if (msg.t === "guess"){
+      if (!hRecordGuess(from, parseLatLng(msg.lat, msg.lng))) return;
       hSync();
       hMaybeEndRound();
     }
     else if (msg.t === "skip"){
       hOnSkip(from);
     }
-    else if (msg.t === "picked" && H.phase === "picking" && from === H.quizmasterId){
-      const loc = parseLatLng(msg.lat, msg.lng);
-      if (!loc) return;
-      hStartPlaying(loc);
+    else if (msg.t === "picked"){
+      hOnPicked(from, parseLatLng(msg.lat, msg.lng));
     }
+  }
+
+  /**
+   * 回答を記録する。ホスト自身の回答もゲストの回答も必ずここを通す。
+   * 別々に書いていたときは、ホストの回答を answerOrder に積み忘れていて、
+   * ホストが1番に答えると2番の人が1着のボーナスを受け取っていた。
+   */
+  function hRecordGuess(id, g){
+    if (!H || H.phase !== "playing") return false;
+    if (id === H.quizmasterId) return false;     // 出題者は回答しない
+    if (H.guesses[id]) return false;             // 二重回答を防ぐ
+    if (!g) return false;                        // 壊れた座標は捨てる
+    H.guesses[id] = g;
+    H.answerOrder.push(id);                      // 到着順はホストが記録する
+    return true;
+  }
+
+  /** 出題を受け付ける。ホストが自分で選んだ場合もゲストからの場合もここを通す */
+  function hOnPicked(from, loc){
+    if (!H || H.phase !== "picking") return false;
+    if (from !== H.quizmasterId) return false;
+    if (!loc) return false;
+    hStartPlaying(loc);
+    return true;
   }
 
   function hStartGame(){
@@ -485,7 +502,7 @@ const Multi = (() => {
     if (!loc) return;
     $("btn-pick-ok").disabled = true;
     Pano.clear($("pick-pano"));
-    if (isHost()) hStartPlaying({ lat:loc.lat, lng:loc.lng });
+    if (isHost()) hOnPicked(me(), { lat:loc.lat, lng:loc.lng });
     else Net.send({ t:"picked", lat:loc.lat, lng:loc.lng });
   }
 
@@ -496,7 +513,7 @@ const Multi = (() => {
     $("btn-mguess").disabled = true;
     $("btn-mguess").textContent = "回答しました（他の人を待っています）";
     if (isHost()){
-      H.guesses[me()] = C.guess;
+      hRecordGuess(me(), C.guess);
       hSync();
       hMaybeEndRound();
     } else {
