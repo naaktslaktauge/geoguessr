@@ -1229,7 +1229,25 @@ async function sectionN(){
   /* --- ラウンドが終わったら消える --- */
   st = latestState();
   check("N 全員回答でラウンドが終わった", st.phase === "result", st.phase);
-  check("★N 結果画面では消えている", box.hidden === true, box.hidden);
+  // 最後に答えた人のアナウンスを消してしまうと一度も表示されないので、
+  // ラウンドが終わっても途中で打ち切らず流し切る
+  check("★N ラウンドが終わってもアナウンスは流し切る", box.hidden === false, box.hidden);
+  runTimers(2000);
+  check("★N 1秒後に自然に消える", box.hidden === true, box.hidden);
+
+  /* --- 相手が最後に回答した場合（2人対戦でよく起きる） --- */
+  await newGame(2, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  nm.textContent = "";
+  // 自分が先に答え、相手が最後に答える
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,1).lat, lng:nearby(loc,1).lng } });
+  clickEl("btn-mguess"); await tick();
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
+  check("★N 相手が最後に回答してもアナウンスが出る",
+        nm.textContent === "P2" && box.hidden === false,
+        "名前=" + nm.textContent + " hidden=" + box.hidden);
+  runTimers(2000);
 
   /* --- 出題者ありモードでも出る --- */
   await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
@@ -1257,6 +1275,15 @@ async function sectionN(){
   Fx.setSound(true);
   check("N 戻すとオンになる", Fx.soundOn() === true);
   check("N 音が鳴らせない環境でも落ちない", (function(){ try { Fx.chime(); return true; } catch(e){ return false; } })());
+
+  /* --- 退出したら打ち切る --- */
+  await newGame(2, { mode:"all", rounds:3, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng }); await tick();
+  check("N 退出前はアナウンスが出ている", box.hidden === false, box.hidden);
+  Multi.leave(); await tick();
+  check("★N 退出したらアナウンスも消える", box.hidden === true, box.hidden);
 }
 
 async function main(){

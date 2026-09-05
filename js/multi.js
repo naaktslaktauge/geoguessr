@@ -612,7 +612,10 @@ const Multi = (() => {
   function renderResult(){
     const st = C.st;
     stopTick();
-    Fx.clear();                      // ラウンドをまたいで持ち越さない
+    // ここでアナウンスを消してはいけない。
+    // 最後に答えた人の場合、回答した瞬間にラウンドが終わるため、
+    // 消すと一度も表示されないまま終わってしまう（2人対戦だと毎回起きる）。
+    // 1秒で自然に消えるので、結果画面に重なったまま流し切る。
     showScreen("screen-mround");
     ensureMaps();
 
