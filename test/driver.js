@@ -745,6 +745,30 @@ async function sectionL(){
   check("L1 スキップ後は票がリセットされる", (st.skipVotes || []).length === 0, JSON.stringify(st.skipVotes));
   check("L1 スキップ後も playing", st.phase === "playing", st.phase);
   var second = locKey(st);
+  // 配信内容だけでなく、画面のストリートビューが実際に差し替わったかを見る
+  check("★L1 ストリートビューが新しい場所で読み込み直される",
+        el("m-pano").children.length === 1 &&
+        el("m-pano").children[0].src.indexOf(st.location.lat + "," + st.location.lng) >= 0,
+        el("m-pano").children[0] ? el("m-pano").children[0].src : "iframe なし");
+  check("★L1 回答ボタンが未回答の状態に戻る",
+        el("btn-mguess").textContent === "地図にピンを置いてください" &&
+        el("btn-mguess").disabled === true,
+        el("btn-mguess").textContent);
+
+  /* --- L-1b: 回答済みでもスキップされたら回答をやり直せる --- */
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng });
+  await tick();
+  check("L1b 1人が回答済み", (latestState().answered || []).length === 1);
+  var beforeSkip = locKey(latestState());
+  guestSend(G[0], { t:"skip" }); await tick();
+  guestSend(G[1], { t:"skip" }); await tick();
+  st = latestState();
+  check("★L1b スキップで場所が変わる", locKey(st) !== beforeSkip);
+  check("★L1b 回答済みの記録がクリアされる", (st.answered || []).length === 0,
+        JSON.stringify(st.answered));
+  check("L1b 画面も新しい場所に更新される",
+        el("m-pano").children[0].src.indexOf(st.location.lat + "," + st.location.lng) >= 0);
+  second = locKey(st);
 
   /* --- L-2: 投票の取り消し --- */
   guestSend(G[0], { t:"skip" }); await tick();
@@ -847,15 +871,15 @@ async function sectionL(){
   await startGame(); await tick();
   var before = S.locs[0].name;
   check("L9 ソロ: ラウンド1で開始", el("hud-round").textContent === "1 / 3", el("hud-round").textContent);
-  await skipRound(); await tick();
-  check("★L9 ソロ: スキップで別の場所に変わる", S.locs[0].name !== before,
+  clickEl("btn-skip"); await tick();
+  check("★L9 ソロ: スキップボタンで別の場所に変わる", S.locs[0].name !== before,
         before + " → " + S.locs[0].name);
   check("★L9 ソロ: ラウンド番号は進まない", el("hud-round").textContent === "1 / 3",
         el("hud-round").textContent);
   check("L9 ソロ: 制限時間も引き直される", el("hud-timer").textContent === "5:00",
         el("hud-timer").textContent);
   var names = [before, S.locs[0].name];
-  await skipRound(); await tick();
+  clickEl("btn-skip"); await tick();
   names.push(S.locs[0].name);
   check("★L9 ソロ: スキップした場所は再び出ない",
         new Set(names).size === names.length, JSON.stringify(names));
@@ -895,6 +919,7 @@ async function sectionL(){
 
 async function main(){
   Multi.init();
+  initEvents();          // ソロ側のボタン配線も本番と同じように登録する
 
   say("");
   say("━━━ A. 接続とロビー ━━━");

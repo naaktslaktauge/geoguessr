@@ -315,6 +315,12 @@ const Multi = (() => {
     C.deadline = (st.remainMs == null) ? null : Date.now() + st.remainMs;
 
     const changedRound = !prev || prev.round !== st.round || prev.phase !== st.phase;
+    // スキップはラウンド番号もフェーズも変えずに場所だけ差し替える。
+    // 座標の変化も見ないと、古いストリートビューが表示されたままになる。
+    const movedLoc = !!st.location && (!prev || !prev.location ||
+                       prev.location.lat !== st.location.lat ||
+                       prev.location.lng !== st.location.lng);
+    const needReload = changedRound || movedLoc;
 
     if (st.phase === "lobby"){ renderLobby(); return; }
     if (st.phase === "final"){ renderFinal(); return; }
@@ -355,9 +361,9 @@ const Multi = (() => {
     $("qm-banner").hidden = !amQm;
     $("map-panel-m").hidden = amQm;
 
-    if (changedRound){
+    if (needReload){
       C.guess = null;
-      C.pending = null;                        // 前ラウンドのピンを持ち越さない
+      C.pending = null;                        // 前の場所のピンを持ち越さない
       const b = $("btn-mguess");
       b.disabled = true;
       b.textContent = "地図にピンを置いてください";
