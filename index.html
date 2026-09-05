@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=26">
+<link rel="stylesheet" href="css/style.css?v=27">
 </head>
 <body>
 
@@ -411,6 +411,9 @@
 
 <!-- ============ 誰かが回答したときの全画面アナウンス ============ -->
 <div id="fx-announce" class="fx" hidden aria-hidden="true">
+  <!-- 画像が用意されていればそれを使い、無ければ下の文字演出にする -->
+  <img id="fx-img1" class="fx-img" alt="">
+  <img id="fx-img2" class="fx-img" alt="">
   <div class="fx-flash"></div>
   <div class="fx-rays"></div>
   <!-- 表示は固定文字。誰が回答したかは読み上げ用に持たせておく -->
@@ -431,13 +434,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=26"></script>
-<script src="js/locations.js?v=26"></script>
-<script src="js/maps.js?v=26"></script>
-<script src="js/pano.js?v=26"></script>
-<script src="js/fx.js?v=26"></script>
-<script src="js/net.js?v=26"></script>
-<script src="js/multi.js?v=26"></script>
-<script src="js/game.js?v=26"></script>
+<script src="js/common.js?v=27"></script>
+<script src="js/locations.js?v=27"></script>
+<script src="js/maps.js?v=27"></script>
+<script src="js/pano.js?v=27"></script>
+<script src="js/fx.js?v=27"></script>
+<script src="js/net.js?v=27"></script>
+<script src="js/multi.js?v=27"></script>
+<script src="js/game.js?v=27"></script>
 </body>
 </html>

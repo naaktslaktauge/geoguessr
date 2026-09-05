@@ -581,6 +581,31 @@ button{font-family:inherit}
   position:fixed;inset:0;z-index:1150;pointer-events:none;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
 }
+/* 演出画像。前半と後半を1秒かけて滑らかに入れ替える */
+.fx-img{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;opacity:0;will-change:opacity,transform;
+}
+.fx.img-mode .fx-flash,
+.fx.img-mode .fx-rays,
+.fx.img-mode .fx-text{display:none}
+.fx.img-mode.play #fx-img1{animation:fximg1 10s linear both}
+.fx.img-mode.play #fx-img2{animation:fximg2 10s linear both}
+@keyframes fximg1{
+  0%  {opacity:0;transform:scale(1.14)}
+  3%  {opacity:1}
+  45% {opacity:1;transform:scale(1.02)}
+  55% {opacity:0;transform:scale(1.00)}
+  100%{opacity:0}
+}
+@keyframes fximg2{
+  0%  {opacity:0;transform:scale(1.12)}
+  45% {opacity:0;transform:scale(1.09)}
+  55% {opacity:1;transform:scale(1.06)}
+  96% {opacity:1;transform:scale(1.00)}
+  100%{opacity:0}
+}
+
 .fx-flash{position:absolute;inset:0;background:#fff;opacity:0}
 .fx-rays{
   position:absolute;width:220vmax;height:220vmax;opacity:0;

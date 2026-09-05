@@ -173,6 +173,13 @@ const Multi = (() => {
     if (!g) return false;                        // 壊れた座標は捨てる
     H.guesses[id] = g;
     H.answerOrder.push(id);                      // 到着順はホストが記録する
+    // 回答の演出が流れている間はタイマーを止める。
+    // 全員の締め切りを演出の長さだけ後ろにずらすことで実現する。
+    if (H.deadline && H.players.filter(p => p.connected).length > 1){
+      H.deadline += Fx.duration();
+      if (H.timer) clearTimeout(H.timer);
+      H.timer = setTimeout(() => hEndRound(), Math.max(0, H.deadline - Date.now()) + 500);
+    }
     return true;
   }
 
@@ -688,7 +695,8 @@ const Multi = (() => {
       const box = $("m-timer-box");
       if (C.deadline == null){ box.hidden = true; return; }
       box.hidden = false;
-      const left = Math.ceil((C.deadline - Date.now()) / 1000);
+      // 演出が流れている分を差し引くと、見た目上はその間だけ止まって見える
+      const left = Math.ceil((C.deadline - Date.now() - Fx.remainingMs()) / 1000);
       $("m-timer").textContent = fmtTime(left);
       $("m-timer").classList.toggle("warn", left <= 10);
     };

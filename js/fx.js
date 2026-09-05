@@ -6,12 +6,19 @@
  * ============================================================ */
 const Fx = (() => {
   const KEY_SOUND = "gg_sound";
-  const SHOW_MS   = 1000;         // 画面に文字を出す時間
+  const SHOW_MS   = 10000;        // 演出を出している時間（音の長さに合わせる）
+  // 前半5秒 → rokkonshojo_1（赤い「六根清浄」）、後半5秒 → rokkonshojo_2（緑の紋章）
+  // 高解像度版に差し替えたときに拡張子が変わっても拾えるよう、候補を順に試す
+  const IMAGES = [
+    ["rokkonshojo_1.png", "rokkonshojo_1.jpg", "rokkonshojo_1.webp"],
+    ["rokkonshojo_2.jpg", "rokkonshojo_2.png", "rokkonshojo_2.webp"]
+  ];
   const CLIP_URL  = "rokkonshojo.mp3";
   const CLIP_SEC  = 10;           // 音を流す長さ
   const FADE_SEC  = 1.5;          // 終わりのフェードアウト
   let queue = [], showing = false, ctx = null, hideTimer = null;
   let clip = null, clipLoading = false, playing = null;
+  let imgReady = false, showUntil = 0;
 
   /* ---------- 音のオン/オフ（端末ごとに保存） ---------- */
   function soundOn(){
@@ -138,6 +145,44 @@ const Fx = (() => {
     });
   }
 
+  /* ---------- 演出画像 ----------
+     2枚そろって初めて画像モードにする。無ければ文字の演出のままにする。 */
+  function loadImages(){
+    const els = [$("fx-img1"), $("fx-img2")];
+    if (!els[0] || !els[1]) return;
+    let ok = 0, done = 0;
+
+    function apply(){
+      imgReady = (ok === 2);
+      const box = $("fx-announce");
+      if (box) box.classList.toggle("img-mode", imgReady);
+      if (!imgReady) console.info("[fx] 演出画像が無いため文字の演出を使います");
+    }
+
+    els.forEach((el, i) => {
+      let k = 0, settled = false;
+      const finish = good => {
+        if (settled) return;
+        settled = true;
+        if (good) ok++;
+        if (++done === 2) apply();
+      };
+      const tryNext = () => {
+        if (k >= IMAGES[i].length){ finish(false); return; }
+        el.src = IMAGES[i][k++];      // 拡張子の候補を順に試す
+      };
+      el.onload  = () => finish(true);
+      el.onerror = tryNext;
+      tryNext();
+    });
+  }
+
+  /** 演出が終わるまでの残り時間。待ち行列の分も含める */
+  function remainingMs(){
+    const cur = Math.max(0, showUntil - Date.now());
+    return cur + queue.length * SHOW_MS;
+  }
+
   /* ---------- 全画面アナウンス ---------- */
   function announce(name){
     queue.push(String(name || ""));
@@ -156,6 +201,7 @@ const Fx = (() => {
     box.classList.remove("play");
     void box.offsetWidth;          // アニメーションを頭から流し直す
     box.classList.add("play");
+    showUntil = Date.now() + SHOW_MS;
     // 音源があればそれを流す。無ければ合成音で代用する
     if (!(soundOn() && playClip())) chime();
     hideTimer = setTimeout(() => {
@@ -169,12 +215,13 @@ const Fx = (() => {
   /** 途中で打ち切る。古いタイマーが次の表示を消してしまわないよう必ず止める */
   function clear(){
     if (hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
-    queue = []; showing = false;
+    queue = []; showing = false; showUntil = 0;
     const b = $("fx-announce");
     if (b){ b.classList.remove("play"); b.hidden = true; }
   }
 
   function init(){
+    loadImages();
     // 操作のたびに解放を試み、鳴らせるようになったら監視をやめる
     addUnlockListeners();
     const cb = $("opt-sound");
@@ -190,5 +237,6 @@ const Fx = (() => {
   /** ゲームから抜けるときなど、鳴っている音も止めたいとき */
   function stopAll(){ clear(); stopClip(); }
 
-  return { init, announce, chime, clear, stopAll, soundOn, setSound };
+  return { init, announce, chime, clear, stopAll, soundOn, setSound,
+           remainingMs, duration: () => SHOW_MS };
 })();
