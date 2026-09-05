@@ -1090,6 +1090,50 @@ async function sectionM(){
         resultOf(st,"P2").bonus === 250 && resultOf(st,"P1").bonus === 0,
         resultOf(st,"P2").bonus + " / " + resultOf(st,"P1").bonus);
 
+  /* --- M-8: 誰が回答したかが即座に反映される --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  function rows(){ return el("m-players").children; }
+  function head(){ var c = rows()[0]; return c && String(c.className).indexOf("mp-head") >= 0 ? c.textContent : null; }
+  function rowClass(name){
+    var r = rows().filter(function(c){ return String(c.innerHTML).indexOf(name) >= 0; })[0];
+    return r ? String(r.className) : "";
+  }
+  check("★M8 開始直後は「回答 0 / 3」と出る", head() === "回答 0 / 3", head());
+  check("M8 全員が待機中の見た目になる",
+        rowClass("P1").indexOf("waiting") >= 0 && rowClass("P2").indexOf("waiting") >= 0,
+        rowClass("P1") + " / " + rowClass("P2"));
+
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
+  check("★M8 1人回答すると即座に「回答 1 / 3」になる", head() === "回答 1 / 3", head());
+  check("★M8 回答した人の行だけ回答済みになる",
+        rowClass("P2").indexOf("answered") >= 0 && rowClass("P3").indexOf("waiting") >= 0,
+        "P2:" + rowClass("P2") + " P3:" + rowClass("P3"));
+  check("M8 回答済みには ✓、未回答には ··· が付く",
+        rows().some(function(c){ return String(c.innerHTML).indexOf("✓") >= 0; }) &&
+        rows().some(function(c){ return String(c.innerHTML).indexOf("···") >= 0; }));
+
+  guestSend(G[1], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
+  check("M8 2人目も反映される", head() === "回答 2 / 3", head());
+
+  /* --- M-9: 出題者ありモードでは出題者を数に入れない --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var qm2 = st.quizmasterId, pt2 = { lat:41.8902, lng:12.4922 };
+  if (qm2 === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt2.lat, lng:pt2.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[qm2], { t:"picked", lat:pt2.lat, lng:pt2.lng });
+  }
+  await tick();
+  check("★M9 出題者を除いた2人で数える", head() === "回答 0 / 2", head());
+  var qmName = latestState().players.filter(function(p){ return p.id === qm2; })[0].name;
+  check("M9 出題者の行には「出題」と出る",
+        rows().some(function(c){ return String(c.innerHTML).indexOf(qmName) >= 0 &&
+                                        String(c.innerHTML).indexOf("出題") >= 0; }));
+
   /* --- M-7: ラウンドごとに回答順が正しく取り直される --- */
   await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
   setBonus(300, 150, 0); await tick();

@@ -293,8 +293,23 @@ button{font-family:inherit}
   background:rgba(14,17,22,.86);border:1px solid var(--line);border-radius:11px;
   padding:8px;min-width:200px;backdrop-filter:blur(6px);
 }
-.mp-row{display:flex;align-items:center;gap:8px;padding:5px 7px;font-size:13px;border-radius:7px}
+/* 回答状況の見出し。誰を待っているのかを数で示す */
+.mp-head{
+  font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:700;
+  padding:2px 7px 6px;margin-bottom:4px;border-bottom:1px solid var(--line);
+}
+.mp-head.done{color:var(--accent)}
+
+.mp-row{display:flex;align-items:center;gap:8px;padding:5px 7px;font-size:13px;
+  border-radius:7px;transition:background .2s}
 .mp-row.off{opacity:.38;text-decoration:line-through}
+/* 回答済みは緑で塗り、まだの人は薄くして点滅させる */
+.mp-row.answered{background:rgba(108,194,74,.16)}
+.mp-row.answered .mp-name{color:var(--accent);font-weight:700}
+.mp-row.answered .mp-mark{color:var(--accent);font-size:14px}
+.mp-row.waiting .mp-name{opacity:.6}
+.mp-row.waiting .mp-mark{color:var(--muted);letter-spacing:1px;animation:waitblink 1.4s ease-in-out infinite}
+@keyframes waitblink{0%,100%{opacity:.25}50%{opacity:.9}}
 .mp-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mp-mark{color:var(--accent);font-size:11px;font-weight:700;min-width:26px;text-align:right}
 .mp-score{font-weight:700;min-width:46px;text-align:right}

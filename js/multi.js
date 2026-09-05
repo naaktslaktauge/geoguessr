@@ -546,16 +546,30 @@ const Multi = (() => {
   function renderPlayers(){
     const st = C.st;
     const box = $("m-players");
+    const done = (st.answered || []).length;
+    const answerers = st.players.filter(p => p.connected && p.id !== st.quizmasterId).length;
     box.innerHTML = "";
+
+    // 誰を待っているのかがひと目で分かるよう、回答状況を見出しに出す
+    if (st.phase === "playing" && answerers > 0){
+      const head = document.createElement("div");
+      const all = done >= answerers;
+      head.className = "mp-head" + (all ? " done" : "");
+      head.textContent = all ? "全員回答しました" : `回答 ${done} / ${answerers}`;
+      box.appendChild(head);
+    }
+
     st.players.forEach((p, i) => {
       const answered = (st.answered || []).indexOf(p.id) >= 0;
       const isQm = st.quizmasterId === p.id;
+      const playing = st.phase === "playing";
       const div = document.createElement("div");
-      div.className = "mp-row" + (p.connected ? "" : " off");
+      div.className = "mp-row" + (p.connected ? "" : " off")
+                    + (playing && !isQm ? (answered ? " answered" : " waiting") : "");
       div.innerHTML =
         `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>` +
         `<span class="mp-name">${escapeHtml(p.name)}${p.id === me() ? " (あなた)" : ""}</span>` +
-        `<span class="mp-mark">${isQm ? "出題" : (answered ? "✓" : "")}</span>` +
+        `<span class="mp-mark">${isQm ? "出題" : (playing ? (answered ? "✓" : "···") : "")}</span>` +
         `<span class="mp-score">${p.score.toLocaleString()}</span>`;
       box.appendChild(div);
     });
