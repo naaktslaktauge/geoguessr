@@ -500,6 +500,88 @@ async function sectionH(){
         qmRow ? JSON.stringify(qmRow) : "行が無い");
 }
 
+
+/* ============================================================
+ * I. 退出ボタン・確認ダイアログ・地図サイズ
+ * ============================================================ */
+async function sectionI(){
+  say("");
+  say("━━━ I. 退出ボタン・確認ダイアログ・地図サイズ ━━━");
+
+  /* --- I-1: 退出ボタンの表示条件 --- */
+  var shouldShow = ["screen-game","screen-round","screen-final",
+                    "screen-lobby","screen-mgame","screen-mround","screen-mfinal"];
+  var shouldHide = ["screen-menu","screen-home","screen-connect"];
+  var ngShow = shouldShow.filter(function(id){ showScreen(id); return el("btn-exit").hidden !== false; });
+  var ngHide = shouldHide.filter(function(id){ showScreen(id); return el("btn-exit").hidden !== true; });
+  check("★I1 ゲーム中の全画面で退出ボタンが出る（7画面）", ngShow.length === 0, JSON.stringify(ngShow));
+  check("I1 メニュー・設定・接続画面では出ない", ngHide.length === 0, JSON.stringify(ngHide));
+
+  /* --- I-2: 確認ダイアログ --- */
+  initModal();
+  check("I2 初期状態ではダイアログは閉じている", modalOpen() === false);
+
+  var fired = 0;
+  showConfirm("ゲームを抜けますか？", "テスト用の説明", "抜ける", function(){ fired++; });
+  check("★I2 showConfirm でダイアログが開く", modalOpen() === true);
+  check("I2 タイトルが表示される", el("modal-title").textContent === "ゲームを抜けますか？", el("modal-title").textContent);
+  check("I2 説明文が表示される", el("modal-text").textContent === "テスト用の説明", el("modal-text").textContent);
+  check("I2 ボタン名を差し替えられる", el("modal-ok").textContent === "抜ける", el("modal-ok").textContent);
+
+  clickEl("modal-cancel");
+  check("★I2 キャンセルで閉じ、処理は実行されない", modalOpen() === false && fired === 0, "fired=" + fired);
+
+  showConfirm("確認", "本当に？", "OK", function(){ fired++; });
+  clickEl("modal-ok");
+  check("★I2 OK で処理が1回だけ実行される", fired === 1, "fired=" + fired);
+  check("I2 OK 後はダイアログが閉じる", modalOpen() === false);
+
+  // 実行後にコールバックが残らない（二重実行の防止）
+  clickEl("modal-ok");
+  check("★I2 閉じた後に押しても再実行されない", fired === 1, "fired=" + fired);
+
+  /* --- I-3: 地図サイズの変更 --- */
+  var resized = 0;
+  initMapSizeControls(function(){ resized++; });
+  check("I3 既定サイズは中くらい（680px）", mapPanelWidth() === "680px", mapPanelWidth());
+
+  clickMapSize(1);
+  check("★I3 ＋で拡大する", mapPanelWidth() === "880px", mapPanelWidth());
+  check("I3 変更時に再描画が呼ばれる", resized === 1, resized);
+
+  var moved = clickMapSize(1);
+  check("★I3 最大でそれ以上大きくならない（ボタンが無効化）",
+        moved === false && mapPanelWidth() === "880px", mapPanelWidth());
+
+  clickMapSize(-1); clickMapSize(-1); clickMapSize(-1);
+  check("★I3 −で縮小し最小は360px", mapPanelWidth() === "360px", mapPanelWidth());
+  moved = clickMapSize(-1);
+  check("I3 最小でそれ以上小さくならない", moved === false && mapPanelWidth() === "360px", mapPanelWidth());
+
+  // ボタンの無効化に頼らず、値そのものが範囲内に収まることを確認する
+  applyMapSize(99);
+  check("★I3 範囲外の値を渡しても最大で止まる", mapPanelWidth() === "880px", mapPanelWidth());
+  applyMapSize(-5);
+  check("★I3 範囲外の値を渡しても最小で止まる", mapPanelWidth() === "360px", mapPanelWidth());
+  applyMapSize(NaN);
+  check("I3 数値でない値でも壊れない",
+        ["360px","520px","680px","880px"].indexOf(mapPanelWidth()) >= 0, mapPanelWidth());
+  applyMapSize(0);
+
+  /* --- I-4: サイズ設定が保存される --- */
+  clickMapSize(1);
+  check("I4 選んだサイズが保存される", localStorage.getItem("gg_map_size") === "1",
+        localStorage.getItem("gg_map_size"));
+  initMapSizeControls(function(){});           // 開き直しを再現
+  check("★I4 次回起動時も同じサイズが復元される", mapPanelWidth() === "520px", mapPanelWidth());
+
+  /* --- I-5: 両方の地図パネルに反映される --- */
+  var both = document.querySelectorAll(".map-panel").every(function(p){
+    return p.style.getPropertyValue("--map-w") === "520px";
+  });
+  check("I5 ソロと対戦の両方の地図に反映される", both);
+}
+
 async function main(){
   Multi.init();
 
@@ -714,6 +796,7 @@ async function main(){
   await sectionF();
   await sectionG();
   await sectionH();
+  await sectionI();
 
   say("");
   say("════════════════════════════════");

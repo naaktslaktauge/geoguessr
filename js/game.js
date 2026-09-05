@@ -222,10 +222,25 @@ function initEvents(){
   $("btn-again").addEventListener("click", startGame);
   $("btn-home").addEventListener("click", () => { showScreen("screen-home"); renderBest(); });
   $("btn-reset-view").addEventListener("click", () => Pano.resetView());
-  $("btn-quit").addEventListener("click", () => {
-    if (confirm("ゲームを中断してホームに戻りますか？")){
-      stopTimer(); Pano.clear(); showScreen("screen-home");
+
+  // どの画面からでも押せる退出ボタン（状況に応じた確認を出す）
+  $("btn-exit").addEventListener("click", () => {
+    const inMulti = !!Net.myId;
+    let text;
+    if (!inMulti){
+      text = "ゲームを中断してメニューに戻ります。ここまでのスコアは記録されません。";
+    } else if (Net.isHost){
+      text = "あなたはホストです。抜けると参加者全員のゲームが終了します。";
+    } else {
+      text = "抜けても、同じ部屋コードでもう一度参加すれば、得点を保ったまま元の席に戻れます。";
     }
+    showConfirm("ゲームを抜けますか？", text, "抜ける", () => {
+      if (inMulti){
+        Multi.leave();
+      } else {
+        stopTimer(); Pano.clear(); showScreen("screen-menu");
+      }
+    });
   });
 
   const panel = $("map-panel");
@@ -240,6 +255,7 @@ function initEvents(){
   document.addEventListener("keydown", e => {
     const t = e.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    if (modalOpen()) return;                     // 確認ダイアログ表示中は無効
     if (e.key === "Enter"){
       if ($("screen-game").classList.contains("active")) submitGuess(false);
       else if ($("screen-round").classList.contains("active")) nextRound();
@@ -257,7 +273,9 @@ document.addEventListener("DOMContentLoaded", () => {
   Pano.init($("pano"));
   initSettingsUI();
   initApiKeyUI();
+  initModal();
   initEvents();
   Multi.init();
+  initMapSizeControls(() => { GuessMap.refresh(); Multi.refreshMap(); });
   renderBest();
 });

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 
@@ -124,11 +124,14 @@
 
   <div class="hud-right">
     <button id="btn-reset-view" class="icon-btn" title="最初の地点に戻る">⟲</button>
-    <button id="btn-quit" class="icon-btn" title="ゲームをやめる">✕</button>
   </div>
 
   <div id="map-panel" class="map-panel">
-    <button id="btn-pin" class="pin-btn" title="地図を固定">📌</button>
+    <div class="map-tools">
+      <button class="map-size" data-dir="-1" title="地図を小さく">−</button>
+      <button class="map-size" data-dir="1" title="地図を大きく">＋</button>
+      <button id="btn-pin" class="pin-btn" title="拡大したまま固定">📌</button>
+    </div>
     <div id="guess-map" class="guess-map"></div>
     <button id="btn-guess" class="btn primary guess-btn" disabled>地図にピンを置いてください</button>
   </div>
@@ -306,7 +309,6 @@
 
   <div class="hud-right">
     <div class="players-box" id="m-players"></div>
-    <button id="btn-mquit" class="icon-btn" title="退出する">✕</button>
   </div>
 
   <div id="qm-banner" class="qm-banner" hidden>
@@ -314,7 +316,11 @@
   </div>
 
   <div id="map-panel-m" class="map-panel">
-    <button id="btn-mpin" class="pin-btn" title="地図を固定">📌</button>
+    <div class="map-tools">
+      <button class="map-size" data-dir="-1" title="地図を小さく">−</button>
+      <button class="map-size" data-dir="1" title="地図を大きく">＋</button>
+      <button id="btn-mpin" class="pin-btn" title="拡大したまま固定">📌</button>
+    </div>
     <div id="m-guess-map" class="guess-map"></div>
     <button id="btn-mguess" class="btn primary guess-btn" disabled>地図にピンを置いてください</button>
   </div>
@@ -370,14 +376,29 @@
   </div>
 </section>
 
+<!-- ==================== 常時表示の退出ボタン ==================== -->
+<button id="btn-exit" class="exit-btn" hidden title="ゲームを抜ける">✕</button>
+
+<!-- ==================== 確認ダイアログ ==================== -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <h3 class="modal-title" id="modal-title">確認</h3>
+    <p class="modal-text" id="modal-text"></p>
+    <div class="modal-actions">
+      <button id="modal-cancel" class="btn ghost">キャンセル</button>
+      <button id="modal-ok" class="btn danger">OK</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=4"></script>
-<script src="js/locations.js?v=4"></script>
-<script src="js/maps.js?v=4"></script>
-<script src="js/pano.js?v=4"></script>
-<script src="js/net.js?v=4"></script>
-<script src="js/multi.js?v=4"></script>
-<script src="js/game.js?v=4"></script>
+<script src="js/common.js?v=5"></script>
+<script src="js/locations.js?v=5"></script>
+<script src="js/maps.js?v=5"></script>
+<script src="js/pano.js?v=5"></script>
+<script src="js/net.js?v=5"></script>
+<script src="js/multi.js?v=5"></script>
+<script src="js/game.js?v=5"></script>
 </body>
 </html>

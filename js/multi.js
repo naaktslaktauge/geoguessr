@@ -580,9 +580,6 @@ const Multi = (() => {
       Pano.clear($("pick-pano"));
       C.maps.pick.reset();
     });
-    $("btn-mquit").addEventListener("click", () => {
-      if (confirm("対戦から退出しますか？")) leave();
-    });
     $("btn-mnext").addEventListener("click", () => { if (isHost()) hNextRound(); });
     $("btn-magain").addEventListener("click", () => {
       if (!isHost()) return;
@@ -604,5 +601,9 @@ const Multi = (() => {
     initLobbyControls();
   }
 
-  return { init, leave };
+  return {
+    init, leave,
+    /** 地図パネルのサイズ変更後に呼ぶ */
+    refreshMap(){ if (C.maps.guess) C.maps.guess.refresh(230); }
+  };
 })();

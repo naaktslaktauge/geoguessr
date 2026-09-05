@@ -12,10 +12,84 @@ const MAP_SIZE = {
 /* プレイヤーの色（最大4人） */
 const PLAYER_COLORS = ["#3b82f6", "#ef4444", "#f59e0b", "#a855f7"];
 
+/* 退出ボタンを出す画面（メニュー・設定・接続画面では出さない） */
+const IN_GAME_SCREENS = [
+  "screen-game", "screen-round", "screen-final",
+  "screen-lobby", "screen-mgame", "screen-mround", "screen-mfinal"
+];
+
 function showScreen(id){
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   const el = $(id);
   if (el) el.classList.add("active");
+  const exit = $("btn-exit");
+  if (exit) exit.hidden = IN_GAME_SCREENS.indexOf(id) < 0;
+}
+
+/* ---------- 確認ダイアログ ---------- */
+let _confirmCb = null;
+
+function showConfirm(title, text, okLabel, onOk){
+  $("modal-title").textContent = title;
+  $("modal-text").textContent  = text;
+  $("modal-ok").textContent    = okLabel || "OK";
+  _confirmCb = onOk;
+  $("modal").hidden = false;
+}
+function closeConfirm(){ $("modal").hidden = true; _confirmCb = null; }
+function modalOpen(){ const m = $("modal"); return !!m && !m.hidden; }
+
+function initModal(){
+  const accept = () => { const cb = _confirmCb; closeConfirm(); if (cb) cb(); };
+  $("modal-cancel").addEventListener("click", closeConfirm);
+  $("modal-ok").addEventListener("click", accept);
+  $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeConfirm(); });
+  document.addEventListener("keydown", e => {
+    if (!modalOpen()) return;
+    if (e.key === "Escape"){ e.preventDefault(); closeConfirm(); }
+    if (e.key === "Enter"){ e.preventDefault(); accept(); }
+  });
+}
+
+/* ---------- 推測マップの表示サイズ ---------- */
+const MAP_SIZES = [
+  { w:360, h:260 }, { w:520, h:380 }, { w:680, h:480 }, { w:880, h:640 }
+];
+const KEY_MAPSIZE = "gg_map_size";
+let _mapStep = 2;
+
+function applyMapSize(step){
+  // 数値でない値が来ても壊れないようにしてから範囲内に収める
+  const n = Number(step);
+  _mapStep = Math.max(0, Math.min(MAP_SIZES.length - 1,
+                                  Number.isFinite(n) ? Math.round(n) : _mapStep));
+  try { localStorage.setItem(KEY_MAPSIZE, String(_mapStep)); } catch(e){}
+  const s = MAP_SIZES[_mapStep];
+  document.querySelectorAll(".map-panel").forEach(p => {
+    p.style.setProperty("--map-w", s.w + "px");
+    p.style.setProperty("--map-h", s.h + "px");
+  });
+  document.querySelectorAll(".map-size").forEach(b => {
+    const dir = Number(b.dataset.dir);
+    b.disabled = (dir < 0 && _mapStep === 0) || (dir > 0 && _mapStep === MAP_SIZES.length - 1);
+  });
+  return _mapStep;
+}
+
+function initMapSizeControls(onResize){
+  let saved = 2;
+  try {
+    const v = parseInt(localStorage.getItem(KEY_MAPSIZE), 10);
+    if (!isNaN(v)) saved = v;
+  } catch(e){}
+  applyMapSize(saved);
+  document.querySelectorAll(".map-size").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      applyMapSize(_mapStep + Number(b.dataset.dir));
+      if (onResize) onResize();
+    });
+  });
 }
 
 /* スコア計算（GeoGuessr 準拠の指数減衰） */

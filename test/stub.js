@@ -26,7 +26,12 @@ async function tick(n){ for (var i = 0; i < (n || 12); i++) await Promise.resolv
 /* --- DOM --- */
 function FakeEl(id){
   this.id = id; this._cls = {}; this._ev = {};
-  this.style = {}; this.dataset = {};
+  this.dataset = {};
+  this.style = {
+    _p:{},
+    setProperty:    function(k, v){ this._p[k] = v; },
+    getPropertyValue:function(k){ return this._p[k]; }
+  };
   this.textContent = ""; this.innerHTML = ""; this.value = "";
   this.hidden = false; this.disabled = false; this.href = "";
   var self = this;
@@ -44,7 +49,16 @@ FakeEl.prototype.closest = function(){ return this; };
 FakeEl.prototype.fire = function(e, arg){ (this._ev[e] || []).forEach(function(f){ f(arg || {}); }); };
 
 var __els = {};
-function el(id){ if (!__els[id]) __els[id] = new FakeEl(id); return __els[id]; }
+function el(id){
+  if (!__els[id]){
+    __els[id] = new FakeEl(id);
+    // 実際の HTML で hidden が付いている要素は、最初から非表示として扱う
+    if (typeof __HTML_HIDDEN !== "undefined" && __HTML_HIDDEN.indexOf(id) >= 0){
+      __els[id].hidden = true;
+    }
+  }
+  return __els[id];
+}
 function clickEl(id){ el(id).fire("click", { stopPropagation:function(){}, target:el(id) }); }
 function activeScreen(){
   for (var k in __els) if (k.indexOf("screen-") === 0 && __els[k]._cls.active) return k;
@@ -52,6 +66,30 @@ function activeScreen(){
 }
 
 /* --- 設定セグメント（ロビー用） --- */
+/* 地図パネル（ソロ用・対戦用）とサイズ操作ボタン */
+var __mapPanels = null, __mapSizeBtns = null;
+function __ensureMapEls(){
+  if (__mapPanels) return;
+  __mapPanels = [el("map-panel"), el("map-panel-m")];
+  __mapSizeBtns = [];
+  ["-1", "1", "-1", "1"].forEach(function(d, i){
+    var b = new FakeEl("mapsize" + i);
+    b.dataset = { dir:d };
+    __mapSizeBtns.push(b);
+  });
+}
+function clickMapSize(dir){          // dir: -1 で縮小 / 1 で拡大
+  __ensureMapEls();
+  var b = __mapSizeBtns.filter(function(x){ return x.dataset.dir === String(dir); })[0];
+  if (b.disabled) return false;
+  b.fire("click", { stopPropagation:function(){} });
+  return true;
+}
+function mapPanelWidth(){
+  __ensureMapEls();
+  return __mapPanels[0].style.getPropertyValue("--map-w");
+}
+
 var __segs = {};
 function makeSeg(name){
   var s = new FakeEl("seg-" + name);
@@ -76,6 +114,8 @@ var document = {
                    .map(function(k){ return __els[k]; });
     }
     if (sel === "#screen-lobby .seg") return Object.keys(__segs).map(function(k){ return __segs[k]; });
+    if (sel === ".map-panel"){ __ensureMapEls(); return __mapPanels; }
+    if (sel === ".map-size"){ __ensureMapEls(); return __mapSizeBtns; }
     return [];
   }
 };

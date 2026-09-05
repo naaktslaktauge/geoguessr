@@ -105,7 +105,7 @@ button{font-family:inherit}
 .hud-value{display:block;font-size:17px;font-weight:700;line-height:1.3}
 .hud-value.warn{color:var(--danger)}
 
-.hud-right{position:absolute;top:14px;right:14px;display:flex;gap:8px;z-index:10}
+.hud-right{position:absolute;top:14px;right:62px;display:flex;gap:8px;z-index:10}
 .icon-btn{
   width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
   background:rgba(14,17,22,.86);color:var(--text);font-size:16px;cursor:pointer;
@@ -115,6 +115,7 @@ button{font-family:inherit}
 
 /* ミニマップ */
 .map-panel{
+  --map-w:680px; --map-h:480px;          /* JS が段階的に書き換える */
   position:absolute;right:14px;bottom:14px;z-index:20;
   width:290px;height:200px;padding-bottom:46px;
   background:rgba(14,17,22,.9);border:1px solid var(--line);border-radius:12px;
@@ -122,15 +123,22 @@ button{font-family:inherit}
   transition:width .18s ease,height .18s ease,opacity .18s ease;
   overflow:hidden;
 }
-.map-panel:hover,.map-panel.pinned{width:min(620px,52vw);height:min(460px,60vh);opacity:1}
+.map-panel:hover,.map-panel.pinned{
+  width:min(var(--map-w), 92vw);
+  height:min(var(--map-h), 82vh);
+  opacity:1;
+}
 .guess-map{position:absolute;inset:6px 6px 52px 6px;border-radius:8px;overflow:hidden;background:#1a222c}
 .guess-btn{position:absolute;left:6px;right:6px;bottom:6px;padding:11px;font-size:14px}
-.pin-btn{
-  position:absolute;top:10px;right:10px;z-index:500;width:30px;height:30px;
-  border-radius:8px;border:1px solid var(--line);background:rgba(14,17,22,.9);
-  cursor:pointer;font-size:13px;opacity:.75;
+/* 地図パネルの操作ボタン群（サイズ変更・ピン留め） */
+.map-tools{position:absolute;top:8px;right:8px;z-index:500;display:flex;gap:5px}
+.map-tools button{
+  width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(14,17,22,.9);color:var(--text);cursor:pointer;
+  font-size:14px;line-height:1;opacity:.75;transition:.15s;padding:0;
 }
-.pin-btn:hover,.map-panel.pinned .pin-btn{opacity:1;border-color:var(--accent)}
+.map-tools button:hover{opacity:1;border-color:var(--accent)}
+.map-panel.pinned .pin-btn{opacity:1;border-color:var(--accent)}
 
 /* Leaflet マーカー */
 .pin{
@@ -244,14 +252,14 @@ button{font-family:inherit}
   position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:12;
   background:rgba(245,197,24,.14);border:1px solid var(--gold);color:var(--gold);
   padding:9px 18px;border-radius:11px;font-size:13px;font-weight:600;
-  backdrop-filter:blur(6px);white-space:nowrap;
+  backdrop-filter:blur(6px);max-width:calc(100vw - 150px);
 }
 
 /* 出題フェーズのオーバーレイ */
 .pick-overlay{position:absolute;inset:0;z-index:40;background:#0e1116}
 .pick-picker{position:absolute;inset:0;display:flex;flex-direction:column}
 .pick-head{
-  padding:13px 18px;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding:13px 62px;background:var(--bg2);border-bottom:1px solid var(--line);
   font-size:14px;font-weight:700;color:var(--gold);text-align:center;flex:0 0 auto;
 }
 .pick-map{flex:1;min-height:0}
@@ -300,3 +308,34 @@ button{font-family:inherit}
 }
 .leaflet-tooltip::before{display:none}
 .tt-actual{border-color:var(--accent);color:var(--accent)}
+
+
+/* ============================================================
+   常時表示の退出ボタン / 確認ダイアログ
+   ============================================================ */
+/* 出題オーバーレイ(z-index:40)や結果カード(1000)より前面に置き、
+   どの画面からでも必ず押せるようにする */
+.exit-btn{
+  position:fixed;top:14px;right:14px;z-index:1100;
+  width:38px;height:38px;border-radius:10px;
+  border:1px solid var(--line);background:rgba(14,17,22,.9);
+  color:var(--text);font-size:16px;cursor:pointer;
+  backdrop-filter:blur(6px);transition:.15s;
+}
+.exit-btn:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+
+.modal{
+  position:fixed;inset:0;z-index:1200;padding:20px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.62);backdrop-filter:blur(3px);
+}
+.modal-box{
+  width:min(430px,92vw);background:var(--bg2);border:1px solid var(--line);
+  border-radius:16px;padding:24px;box-shadow:var(--shadow);
+}
+.modal-title{margin:0 0 10px;font-size:18px}
+.modal-text{margin:0 0 20px;font-size:14px;color:var(--muted);line-height:1.8}
+.modal-actions{display:flex;gap:10px}
+.modal-actions .btn{flex:1;padding:12px}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.danger:hover{background:#c93b3f;border-color:#c93b3f}
