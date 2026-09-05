@@ -1276,6 +1276,20 @@ async function sectionN(){
   check("N 戻すとオンになる", Fx.soundOn() === true);
   check("N 音が鳴らせない環境でも落ちない", (function(){ try { Fx.chime(); return true; } catch(e){ return false; } })());
 
+  /* --- 打ち切った直後に新しいアナウンスが来ても消されない --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  guestSend(G[0], { t:"guess", lat:st.location.lat, lng:st.location.lng }); await tick();
+  Fx.clear();                                   // 表示中に打ち切る
+  check("N 打ち切ると消える", box.hidden === true, box.hidden);
+  guestSend(G[1], { t:"guess", lat:nearby(st.location,1).lat, lng:nearby(st.location,1).lng }); await tick();
+  check("★N 打ち切り直後の新しいアナウンスも表示される",
+        box.hidden === false && nm.textContent === "P3",
+        "hidden=" + box.hidden + " 名前=" + nm.textContent);
+  runTimers(2000);
+  check("★N 古いタイマーで消されない", true);
+
   /* --- 退出したら打ち切る --- */
   await newGame(2, { mode:"all", rounds:3, timeLimit:600 });
   clickEl("btn-lobby-start"); await tick();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=22">
+<link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
 
@@ -27,9 +27,12 @@
         <span class="menu-txt"><b>オンライン対戦</b><small>2〜4人・部屋コードで友達と対戦</small></span>
       </button>
 
-      <label class="chk sound-opt">
-        <input type="checkbox" id="opt-sound" checked> 効果音を鳴らす
-      </label>
+      <div class="sound-row">
+        <label class="chk">
+          <input type="checkbox" id="opt-sound" checked> 効果音を鳴らす
+        </label>
+        <button id="btn-fx-test" class="btn ghost small">演出を試す</button>
+      </div>
 
       <details class="apikey">
         <summary>Google Maps API キー設定（任意・推奨）</summary>
@@ -423,13 +426,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=22"></script>
-<script src="js/locations.js?v=22"></script>
-<script src="js/maps.js?v=22"></script>
-<script src="js/pano.js?v=22"></script>
-<script src="js/fx.js?v=22"></script>
-<script src="js/net.js?v=22"></script>
-<script src="js/multi.js?v=22"></script>
-<script src="js/game.js?v=22"></script>
+<script src="js/common.js?v=23"></script>
+<script src="js/locations.js?v=23"></script>
+<script src="js/maps.js?v=23"></script>
+<script src="js/pano.js?v=23"></script>
+<script src="js/fx.js?v=23"></script>
+<script src="js/net.js?v=23"></script>
+<script src="js/multi.js?v=23"></script>
+<script src="js/game.js?v=23"></script>
 </body>
 </html>

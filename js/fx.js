@@ -7,7 +7,7 @@
 const Fx = (() => {
   const KEY_SOUND = "gg_sound";
   const SHOW_MS = 1000;           // 表示時間
-  let queue = [], showing = false, ctx = null;
+  let queue = [], showing = false, ctx = null, hideTimer = null;
 
   /* ---------- 音のオン/オフ（端末ごとに保存） ---------- */
   function soundOn(){
@@ -72,6 +72,7 @@ const Fx = (() => {
   }
 
   function next(){
+    if (hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
     if (!queue.length){ showing = false; return; }
     showing = true;
     const name = queue.shift();
@@ -83,14 +84,21 @@ const Fx = (() => {
     void box.offsetWidth;          // アニメーションを頭から流し直す
     box.classList.add("play");
     chime();
-    setTimeout(() => {
+    hideTimer = setTimeout(() => {
+      hideTimer = null;
       box.classList.remove("play");
       box.hidden = true;
       next();                      // 続けて溜まっていれば順に出す
     }, SHOW_MS);
   }
 
-  function clear(){ queue = []; showing = false; const b = $("fx-announce"); if (b) b.hidden = true; }
+  /** 途中で打ち切る。古いタイマーが次の表示を消してしまわないよう必ず止める */
+  function clear(){
+    if (hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+    queue = []; showing = false;
+    const b = $("fx-announce");
+    if (b){ b.classList.remove("play"); b.hidden = true; }
+  }
 
   function init(){
     // 最初の操作で音を使えるようにしておく
@@ -101,6 +109,9 @@ const Fx = (() => {
       cb.checked = soundOn();
       cb.addEventListener("change", () => setSound(cb.checked));
     }
+    // 1人でも演出と音を確かめられるようにしておく
+    const test = $("btn-fx-test");
+    if (test) test.addEventListener("click", () => { unlock(); announce("テスト"); });
   }
 
   return { init, announce, chime, clear, soundOn, setSound };

@@ -621,4 +621,5 @@ button{font-family:inherit}
   .fx.play .fx-text{animation:fxfade 1s ease}
   @keyframes fxfade{0%,100%{opacity:0}20%,80%{opacity:1}}
 }
-.sound-opt{margin:4px 0 14px}
+.sound-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 14px}
+.btn.small{padding:7px 13px;font-size:12px}
