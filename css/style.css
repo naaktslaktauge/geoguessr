@@ -27,6 +27,14 @@ button{font-family:inherit}
 
 .screen{position:fixed;inset:0;display:none}
 .screen.active{display:block}
+/* 縦に長くなる画面はスクロールできるようにする。
+   .screen は position:fixed なので、指定しないと画面外の内容に届かなくなる */
+#screen-menu, #screen-home, #screen-connect,
+#screen-lobby, #screen-final, #screen-mfinal{
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
 
 /* ===== ボタン ===== */
 .btn{
@@ -253,6 +261,20 @@ button{font-family:inherit}
 }
 .code-label{font-size:11px;color:var(--muted);letter-spacing:1px}
 .code-value{font-size:30px;font-weight:800;letter-spacing:7px;color:var(--accent)}
+.bonus-row{display:flex;gap:8px}
+.bonus-in{flex:1;display:flex;align-items:center;gap:7px;
+  background:#111721;border:1px solid var(--line);border-radius:9px;padding:7px 9px}
+.bonus-in span{font-size:11px;color:var(--muted);flex:0 0 auto}
+.bonus-in input{
+  width:100%;min-width:0;background:transparent;border:0;color:var(--text);
+  font-size:14px;font-weight:700;font-family:inherit;text-align:right;padding:0;
+}
+.bonus-in input:focus{outline:none}
+.bonus-in:focus-within{border-color:var(--accent)}
+.bonus-note{font-size:11px;color:var(--muted);line-height:1.7;margin:9px 0 0}
+.bonus-note b{color:var(--text)}
+.mr-bonus{color:var(--gold);font-size:11px;font-weight:700;min-width:52px;text-align:right;white-space:nowrap}
+
 .lobby-players{list-style:none;padding:0;margin:0}
 .lobby-players li{
   display:flex;align-items:center;gap:10px;background:#111721;

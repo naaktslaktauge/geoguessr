@@ -108,6 +108,17 @@ function latestState(){
   return best;
 }
 
+
+/** 早押しボーナスを設定する（ホストの入力欄を操作する） */
+function setBonus(a, b, c){
+  [["bonus1",a],["bonus2",b],["bonus3",c]].forEach(function(x){
+    var e = el(x[0]); e.value = String(x[1]); e.fire("change");
+  });
+}
+function resultOf(st, name){
+  return (st.results || []).filter(function(r){ return r.name === name; })[0];
+}
+
 /** 抜けた人が同じ部屋コードで戻ってくる操作 */
 function rejoinAs(name, token, id){
   var peer = __peers[__peers.length - 1];
@@ -970,6 +981,141 @@ async function sectionL(){
   S.settings.region = "world"; S.settings.difficulty = "all";
 }
 
+
+/* ============================================================
+ * M. 早押しボーナス
+ * ============================================================ */
+async function sectionM(){
+  say("");
+  say("━━━ M. 早押しボーナス ━━━");
+
+  /* --- M-1: 既定は 0（無効） --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  var st = latestState();
+  check("★M1 既定値は全て0（無効）",
+        JSON.stringify(st.settings.speedBonus) === "[0,0,0]",
+        JSON.stringify(st.settings.speedBonus));
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var loc = st.location;
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng });        await tick();
+  guestSend(G[1], { t:"guess", lat:loc.lat, lng:loc.lng });        await tick();
+  await answerAll(st);
+  st = latestState();
+  check("★M1 無効なら誰にもボーナスが付かない",
+        (st.results || []).every(function(r){ return !r.bonus; }),
+        JSON.stringify((st.results||[]).map(function(r){ return r.name+":"+r.bonus; })));
+  check("M1 ピタリ賞は5000のまま", resultOf(st,"P2").score === 5000, resultOf(st,"P2").score);
+
+  /* --- M-2: 回答が速い順に加点される --- */
+  await newGame(4, { mode:"all", rounds:5, timeLimit:600 });
+  setBonus(300, 150, 50); await tick();
+  st = latestState();
+  check("★M2 設定が全員に配信される",
+        JSON.stringify(st.settings.speedBonus) === "[300,150,50]",
+        JSON.stringify(st.settings.speedBonus));
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  // P2 → P3 → P4 → ホスト の順に回答する
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng });                     await tick();
+  guestSend(G[1], { t:"guess", lat:nearby(loc,1).lat, lng:nearby(loc,1).lng }); await tick();
+  guestSend(G[2], { t:"guess", lat:nearby(loc,2).lat, lng:nearby(loc,2).lng }); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,3).lat, lng:nearby(loc,3).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("M2 ラウンドが締まった", st.phase === "result", st.phase);
+  check("★M2 1着に +300", resultOf(st,"P2").bonus === 300, resultOf(st,"P2").bonus);
+  check("★M2 2着に +150", resultOf(st,"P3").bonus === 150, resultOf(st,"P3").bonus);
+  check("★M2 3着に +50",  resultOf(st,"P4").bonus === 50,  resultOf(st,"P4").bonus);
+  check("★M2 4着（設定なし）は0", resultOf(st,"P1").bonus === 0, resultOf(st,"P1").bonus);
+  check("★M2 得点に加算されている", resultOf(st,"P2").score === 5300, resultOf(st,"P2").score);
+  var sum = st.players.filter(function(p){ return p.name === "P2"; })[0].score;
+  check("M2 累計にも反映される", sum === 5300, sum);
+
+  /* --- M-3: 雑な早押しには出さない --- */
+  clickEl("btn-mnext"); await tick();
+  st = latestState(); loc = st.location;
+  var far = nearby(loc, 40);        // 4000km以上ずれる＝1000点未満
+  guestSend(G[0], { t:"guess", lat:far.lat, lng:far.lng });        await tick();  // 1番目だが雑
+  guestSend(G[1], { t:"guess", lat:loc.lat, lng:loc.lng });        await tick();  // 2番目で正確
+  guestSend(G[2], { t:"guess", lat:nearby(loc,1).lat, lng:nearby(loc,1).lng }); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,2).lat, lng:nearby(loc,2).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  var p2 = resultOf(st,"P2"), p3 = resultOf(st,"P3");
+  check("M3 雑な回答は1000点未満だった", p2.score < 1000, p2.score);
+  check("★M3 雑な早押しにはボーナスが付かない", p2.bonus === 0, p2.bonus);
+  check("★M3 その枠は詰められ、次の人が1着になる", p3.bonus === 300, p3.bonus);
+
+  /* --- M-4: 出題者は対象外 --- */
+  await newGame(3, { mode:"quiz", laps:1, timeLimit:600 });
+  setBonus(300, 150, 50); await tick();
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState();
+  var qmId = st.quizmasterId, pt = { lat:41.8902, lng:12.4922 };
+  if (qmId === st.hostId){
+    __mapClicks[PICK_CLICK]({ latlng:{ lat:pt.lat, lng:pt.lng } }); await tick(); clickEl("btn-pick-ok");
+  } else {
+    guestSend(connById[qmId], { t:"picked", lat:pt.lat, lng:pt.lng });
+  }
+  await tick();
+  st = latestState();
+  await answerAll(st);
+  st = latestState();
+  var qmRow = (st.results || []).filter(function(r){ return r.id === qmId; })[0];
+  check("★M4 出題者にはボーナスが付かない", qmRow && !qmRow.bonus, qmRow ? qmRow.bonus : "行なし");
+  var got = (st.results || []).filter(function(r){ return r.bonus > 0; });
+  check("M4 回答者2人にはボーナスが付く", got.length === 2, got.length);
+
+  /* --- M-5: 入力値の検証 --- */
+  await newGame(2, { mode:"all", rounds:3 });
+  setBonus(-100, 99999, "あ"); await tick();
+  st = latestState();
+  check("★M5 負の値は0に丸められる", st.settings.speedBonus[0] === 0, st.settings.speedBonus[0]);
+  check("★M5 上限2000で頭打ちになる", st.settings.speedBonus[1] === 2000, st.settings.speedBonus[1]);
+  check("★M5 数値でない入力は0になる", st.settings.speedBonus[2] === 0, st.settings.speedBonus[2]);
+  setBonus(250, 0, 0); await tick();
+  check("M5 入力欄の値が設定に反映される",
+        JSON.stringify(latestState().settings.speedBonus) === "[250,0,0]",
+        JSON.stringify(latestState().settings.speedBonus));
+
+  /* --- M-6: 未回答・時間切れにはボーナスなし --- */
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng }); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,1).lat, lng:nearby(loc,1).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("★M6 1着だけにボーナスが付く（2着以降は0設定）",
+        resultOf(st,"P2").bonus === 250 && resultOf(st,"P1").bonus === 0,
+        resultOf(st,"P2").bonus + " / " + resultOf(st,"P1").bonus);
+
+  /* --- M-7: ラウンドごとに回答順が正しく取り直される --- */
+  await newGame(3, { mode:"all", rounds:5, timeLimit:600 });
+  setBonus(300, 150, 0); await tick();
+  clickEl("btn-lobby-start"); await tick();
+  st = latestState(); loc = st.location;
+  // ラウンド1は P2 → P3 の順
+  guestSend(G[0], { t:"guess", lat:loc.lat, lng:loc.lng });                     await tick();
+  guestSend(G[1], { t:"guess", lat:nearby(loc,1).lat, lng:nearby(loc,1).lng }); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,2).lat, lng:nearby(loc,2).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("M7 ラウンド1は P2 が1着", resultOf(st,"P2").bonus === 300, resultOf(st,"P2").bonus);
+
+  // ラウンド2は順番を入れ替えて P3 → P2 の順
+  clickEl("btn-mnext"); await tick();
+  st = latestState(); loc = st.location;
+  guestSend(G[1], { t:"guess", lat:loc.lat, lng:loc.lng });                     await tick();
+  guestSend(G[0], { t:"guess", lat:nearby(loc,1).lat, lng:nearby(loc,1).lng }); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:nearby(loc,2).lat, lng:nearby(loc,2).lng } });
+  clickEl("btn-mguess"); await tick();
+  st = latestState();
+  check("★M7 ラウンド2は順番が変われば1着も変わる",
+        resultOf(st,"P3").bonus === 300 && resultOf(st,"P2").bonus === 150,
+        "P3:" + resultOf(st,"P3").bonus + " P2:" + resultOf(st,"P2").bonus);
+}
+
 async function main(){
   Multi.init();
   initEvents();          // ソロ側のボタン配線も本番と同じように登録する
@@ -1189,6 +1335,7 @@ async function main(){
   await sectionJ();
   await sectionK();
   await sectionL();
+  await sectionM();
 
   say("");
   say("════════════════════════════════");

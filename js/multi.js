@@ -18,6 +18,8 @@ const Multi = (() => {
 
   const isHost = () => Net.isHost;
   const me     = () => Net.myId;
+  const SPEED_BONUS_MIN = 1000;   // これ未満の回答には早押しボーナスを出さない
+
   /** 自分が回答済みか。復帰直後はローカルの C.guess が空なので配信状態で判定する */
   const answeredByMe = st => !!st && (st.answered || []).indexOf(me()) >= 0;
 
@@ -31,9 +33,10 @@ const Multi = (() => {
       H = {
         players: [{ id:me(), name:C.name, score:0, connected:true }],
         mode: "all",
-        settings: { rounds:5, laps:1, timeLimit:120, region:"world", difficulty:"all" },
+        settings: { rounds:5, laps:1, timeLimit:120, region:"world", difficulty:"all",
+                    speedBonus:[0, 0, 0] },   // 早押しボーナス（1着/2着/3着）
         phase: "lobby", round: 0, totalRounds: 0,
-        quizmasterId: null, location: null, guesses: {}, skipVotes: [],
+        quizmasterId: null, location: null, guesses: {}, answerOrder: [], skipVotes: [],
         used: [], deadline: null, timer: null
       };
       C.joined = true;
@@ -129,6 +132,8 @@ const Multi = (() => {
         if (token) slot.token = token;
         // ID が変わるので、その席に紐づく情報を新しい ID へ移し替える
         if (H.guesses[oldId]){ H.guesses[from] = H.guesses[oldId]; delete H.guesses[oldId]; }
+        const oi = (H.answerOrder || []).indexOf(oldId);
+        if (oi >= 0) H.answerOrder[oi] = from;      // 復帰しても回答順は引き継ぐ
         if (H.quizmasterId === oldId) H.quizmasterId = from;
         Net.sendTo(from, { t:"rejoined" });
         hSync();
@@ -148,6 +153,7 @@ const Multi = (() => {
       const g = parseLatLng(msg.lat, msg.lng);
       if (!g) return;                                        // 壊れた座標は捨てる
       H.guesses[from] = g;
+      H.answerOrder.push(from);      // 到着順はホストが記録する（自己申告だと詐称できる）
       hSync();
       hMaybeEndRound();
     }
@@ -184,6 +190,7 @@ const Multi = (() => {
     if (H.timer){ clearTimeout(H.timer); H.timer = null; }
     H.round++;
     H.guesses = {};
+    H.answerOrder = [];              // 早押しボーナス用に回答の到着順を持つ
     H.skipVotes = [];
     H.location = null;
     H.deadline = null;
@@ -213,6 +220,25 @@ const Multi = (() => {
     }
   }
 
+  /**
+   * 早押しボーナスを結果に反映する。
+   * 当てずっぽうの早押しで得をしないよう、一定点以上取った人だけを対象にする。
+   * 出題者は回答しないので最初から対象外。
+   */
+  function applySpeedBonus(results, order, table){
+    results.forEach(r => { r.bonus = 0; });
+    if (!table || !table.some(v => v > 0)) return;
+    let rank = 0;
+    order.forEach(id => {
+      const r = results.find(x => x.id === id);
+      if (!r || r.quizmaster || !r.guess) return;
+      if (r.score < SPEED_BONUS_MIN) return;        // 雑な早押しには出さない
+      const b = Number(table[rank]) || 0;
+      rank++;
+      if (b > 0){ r.bonus = b; r.score += b; }
+    });
+  }
+
   /** スキップに必要な票数（回答者の過半数。2人なら2人、3〜4人なら2人） */
   function hSkipNeeded(){
     const n = H.players.filter(p => p.connected && p.id !== H.quizmasterId).length;
@@ -239,6 +265,7 @@ const Multi = (() => {
   function hRedoRound(){
     if (H.timer){ clearTimeout(H.timer); H.timer = null; }
     H.guesses = {};
+    H.answerOrder = [];
     H.skipVotes = [];
     H.deadline = null;
     if (H.mode === "quiz"){
@@ -266,6 +293,7 @@ const Multi = (() => {
     const region = H.mode === "quiz" ? "world" : H.settings.region;
     const alive  = H.players.filter(p => p.connected);
     H.results = scoreRound(H.location, H.guesses, alive, region, H.quizmasterId);
+    applySpeedBonus(H.results, H.answerOrder || [], H.settings.speedBonus);
     H.results.forEach(r => {
       const p = H.players.find(x => x.id === r.id);
       if (p) p.score += r.score;
@@ -502,8 +530,15 @@ const Multi = (() => {
     if (!isHost()){
       const modeName = st.mode === "quiz" ? "出題者あり" : "全員が回答者";
       const tl = st.settings.timeLimit;
+      const sb = st.settings.speedBonus || [0,0,0];
+      const bonus = sb.some(v => v > 0) ? `／ 早押しボーナス：${sb.join(" / ")}` : "";
       $("lobby-guest-info").textContent =
-        `モード：${modeName} ／ 制限時間：${tl ? tl / 60 + "分" : "無制限"}`;
+        `モード：${modeName} ／ 制限時間：${tl ? tl / 60 + "分" : "無制限"} ${bonus}`;
+    } else {
+      const sb = st.settings.speedBonus || [0,0,0];
+      ["bonus1","bonus2","bonus3"].forEach((id, i) => {
+        if (document.activeElement !== $(id)) $(id).value = String(sb[i] || 0);
+      });
     }
     syncQuizRoundLabel();
   }
@@ -566,6 +601,7 @@ const Multi = (() => {
         `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>` +
         `<span class="mr-name">${escapeHtml(r.name)}</span>` +
         `<span class="mr-dist">${r.quizmaster ? "出題者" : (r.guess ? fmtDist(r.km) : "回答なし")}</span>` +
+        `<span class="mr-bonus">${r.bonus ? "早押し+" + r.bonus : ""}</span>` +
         `<span class="mr-score">${r.quizmaster ? "—" : "+" + r.score.toLocaleString()}</span>`;
       tb.appendChild(tr);
     });
@@ -625,6 +661,24 @@ const Multi = (() => {
     $("row-area").hidden   = quiz;
     const n = st.players.filter(p => p.connected).length;
     $("laps-note").textContent = quiz ? `全 ${n * st.settings.laps} ラウンド（${n}人 × ${st.settings.laps}周）` : "";
+  }
+
+  /** 早押しボーナスの入力欄（ホストのみ操作できる） */
+  function initBonusInputs(){
+    ["bonus1","bonus2","bonus3"].forEach((id, i) => {
+      const el = $(id);
+      const commit = () => {
+        if (!isHost() || !H) return;
+        let v = Math.round(Number(el.value));
+        if (!Number.isFinite(v) || v < 0) v = 0;
+        if (v > 2000) v = 2000;
+        el.value = String(v);
+        H.settings.speedBonus[i] = v;
+        hSync();
+      };
+      el.addEventListener("change", commit);
+      el.addEventListener("blur", commit);
+    });
   }
 
   function initLobbyControls(){
@@ -701,6 +755,7 @@ const Multi = (() => {
     panel.addEventListener("mouseleave", () => C.maps.guess && C.maps.guess.refresh());
 
     initLobbyControls();
+    initBonusInputs();
   }
 
   return {

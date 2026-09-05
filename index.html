@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body>
 
@@ -285,6 +285,20 @@
           </div>
         </div>
 
+        <div class="field">
+          <label>早押しボーナス <span class="hint">回答が速い順に加点（0 で無効）</span></label>
+          <div class="bonus-row">
+            <label class="bonus-in"><span>1着</span>
+              <input type="number" id="bonus1" value="0" min="0" max="2000" step="50" inputmode="numeric"></label>
+            <label class="bonus-in"><span>2着</span>
+              <input type="number" id="bonus2" value="0" min="0" max="2000" step="50" inputmode="numeric"></label>
+            <label class="bonus-in"><span>3着</span>
+              <input type="number" id="bonus3" value="0" min="0" max="2000" step="50" inputmode="numeric"></label>
+          </div>
+          <p class="bonus-note">その回で <b>1,000 点以上</b>取った人だけが対象です（当てずっぽうの早押し対策）。
+            出題者は対象外です。</p>
+        </div>
+
         <button id="btn-lobby-start" class="btn primary big" disabled>ゲーム開始</button>
       </div>
 
@@ -398,12 +412,12 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=15"></script>
-<script src="js/locations.js?v=15"></script>
-<script src="js/maps.js?v=15"></script>
-<script src="js/pano.js?v=15"></script>
-<script src="js/net.js?v=15"></script>
-<script src="js/multi.js?v=15"></script>
-<script src="js/game.js?v=15"></script>
+<script src="js/common.js?v=16"></script>
+<script src="js/locations.js?v=16"></script>
+<script src="js/maps.js?v=16"></script>
+<script src="js/pano.js?v=16"></script>
+<script src="js/net.js?v=16"></script>
+<script src="js/multi.js?v=16"></script>
+<script src="js/game.js?v=16"></script>
 </body>
 </html>
