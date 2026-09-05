@@ -13,20 +13,21 @@
 | `cross.py` | 2つの地理サービスを突き合わせて誤りを検出 |
 | `gen.py` | 344件版の `js/locations.js` を生成 |
 
-### 一括生成（都市データ 約690件）
+### 一括生成（都市データ 約1万件）
 | ファイル | 内容 |
 |---|---|
 | `countries.py` | 対象の国・地域とエリアごとの追加目標件数 |
 | `pick_cities.py` | GeoNames の都市データから条件に合う地点を選ぶ |
 | `snap_add.py` | 追加分を道路へ吸着（任意。Overpass が重いときは省略可） |
-| `gen_all.py` | 手作業リストと追加分を統合して `js/locations.js` を生成 |
+| `gen_all.py` | 手作業リストと追加分を統合して `js/locations.js` を生成（1,000件版） |
+| `build_big.py` | 1万件版を一気に生成（コンパクト形式） |
+| `pick_tail.js` | 生成物の末尾に付ける抽選関数 |
 
 一括生成には GeoNames の都市データが必要です。
 ```bash
-curl -O https://download.geonames.org/export/dump/cities15000.zip
-unzip cities15000.zip -d tools/
-python3 tools/pick_cities.py tools     # 条件に合う都市を選ぶ → added.json
-python3 tools/gen_all.py   tools js/locations.js
+curl -O https://download.geonames.org/export/dump/cities1000.zip
+unzip cities1000.zip -d tools/
+python3 tools/build_big.py tools js/locations.js
 ```
 
 難易度は人口で機械的に決めています（首都または150万人以上＝やさしい、

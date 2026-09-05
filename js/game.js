@@ -115,7 +115,8 @@ async function loadRound(){
 /** 屋内など遊べない場所だったとき、同じラウンドのまま別の場所に差し替える */
 async function skipRound(){
   if (S.locked) return;
-  const pool = pickLocations(S.settings.region, S.settings.difficulty, 60);
+  // pickLocations は件数が足りないと難易度を緩めてしまうため、ここでは使わない
+  const pool = shuffledPool(S.settings.region, S.settings.difficulty);
   const loc  = pool.find(l => S.used.indexOf(l.name) < 0) || pool[0];
   S.used.push(loc.name);
   S.locs[S.idx] = loc;

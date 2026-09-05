@@ -912,9 +912,62 @@ async function sectionL(){
     else break;
   }
   check("L11 10ラウンド消化した", used.length === 10, used.length);
-  check("★L11 候補が10件しかなくても出題が重複しない",
+  check("★L11 出題が重複しない",
         new Set(used).size === used.length,
         (used.length - new Set(used).size) + "件が重複");
+
+  /* --- L-12: 同じラウンド内で連続スキップしても場所が重複しない --- */
+  // 候補が少ないエリアで連続スキップすると、出題済みを記録していなければ必ず重複する
+  await newGame(2, { mode:"all", rounds:3, timeLimit:600, region:"oceania", difficulty:1 });
+  clickEl("btn-lobby-start"); await tick();
+  var chain = [locKey(latestState())];
+  for (var k = 0; k < 12; k++){
+    clickEl("btn-mskip");                       // ホストの1票
+    guestSend(G[0], { t:"skip" });              // ゲストの1票 → 過半数で成立
+    await tick();
+    chain.push(locKey(latestState()));
+  }
+  check("L12 13回分の出題を取得した", chain.length === 13, chain.length);
+  check("★L12 連続スキップしても同じ場所が二度出ない",
+        new Set(chain).size === chain.length,
+        (chain.length - new Set(chain).size) + "件が重複");
+
+  /* --- L-13: 引き直しでも難易度・エリアの指定が守られる --- */
+  function lookup(st){
+    return LOCATIONS.filter(function(l){
+      return Math.abs(l.lat - st.location.lat) < 1e-6 && Math.abs(l.lng - st.location.lng) < 1e-6;
+    })[0];
+  }
+  var offDiff = [], offRegion = [];
+  chain.forEach(function(){});
+  await newGame(2, { mode:"all", rounds:5, timeLimit:600, region:"oceania", difficulty:1 });
+  clickEl("btn-lobby-start"); await tick();
+  for (var k2 = 0; k2 < 10; k2++){
+    var L = lookup(latestState());
+    if (!L) { offDiff.push("該当地点が見つからない"); break; }
+    if (L.diff !== 1)         offDiff.push(L.name + "(難易度" + L.diff + ")");
+    if (L.region !== "oceania") offRegion.push(L.name + "(" + L.region + ")");
+    clickEl("btn-mskip"); guestSend(G[0], { t:"skip" }); await tick();
+  }
+  check("★L13 引き直しても指定した難易度が守られる", offDiff.length === 0,
+        offDiff.slice(0,3).join("、"));
+  check("★L13 引き直しても指定したエリアが守られる", offRegion.length === 0,
+        offRegion.slice(0,3).join("、"));
+
+  /* --- L-14: ソロのスキップでも指定が守られる --- */
+  Net.close();
+  Pano.init(el("pano"));
+  S.settings.rounds = 3; S.settings.timeLimit = 300;
+  S.settings.region = "africa"; S.settings.difficulty = "1";
+  await startGame(); await tick();
+  var soloNg = [];
+  for (var k3 = 0; k3 < 8; k3++){
+    var cur = S.locs[S.idx];
+    if (cur.diff !== 1 || cur.region !== "africa") soloNg.push(cur.name + "(" + cur.region + "/" + cur.diff + ")");
+    clickEl("btn-skip"); await tick();
+  }
+  check("★L14 ソロもスキップ後に指定が守られる", soloNg.length === 0, soloNg.slice(0,3).join("、"));
+  S.settings.region = "world"; S.settings.difficulty = "all";
 }
 
 async function main(){

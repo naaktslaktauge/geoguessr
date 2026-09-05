@@ -8,10 +8,12 @@ function check(label, cond, extra){
 }
 
 /* --- 決定論的な乱数（失敗を再現できるようにする） --- */
-var __seed = 20260905;
+// 32bit を超える乗算は JavaScript の数値精度で桁が落ちて偏るため、
+// Math.imul を使った正しい線形合同法にする
+var __seed = 20260905 >>> 0;
 Math.random = function(){
-  __seed = (__seed * 1103515245 + 12345) & 0x7fffffff;
-  return __seed / 0x7fffffff;
+  __seed = (Math.imul(__seed, 1664525) + 1013904223) >>> 0;
+  return __seed / 4294967296;
 };
 
 /* --- 時計（手動で進める。端末間のズレを検証するため） --- */

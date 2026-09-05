@@ -173,7 +173,8 @@ const Multi = (() => {
 
   /** まだ出していない地点を1つ引く。スキップ時の引き直しにも使う */
   function hDrawLocation(){
-    const pool = pickLocations(H.settings.region, H.settings.difficulty, 60);
+    // pickLocations は件数が足りないと難易度を緩めてしまうため、ここでは使わない
+    const pool = shuffledPool(H.settings.region, H.settings.difficulty);
     const loc = pool.find(l => H.used.indexOf(l.name) < 0) || pool[0];
     H.used.push(loc.name);
     return loc;
