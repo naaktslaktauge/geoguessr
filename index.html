@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoGuessr Clone - 世界どこでしょう</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 
@@ -157,6 +157,13 @@
     <div class="result-dist" id="res-dist">—</div>
     <div class="result-bar"><div class="result-bar-fill" id="res-bar"></div></div>
     <div class="result-score"><span id="res-score">0</span> <small>/ 5000 点</small></div>
+    <div class="guide" id="res-guide" hidden>
+      <button type="button" class="guide-head" id="res-guide-head" aria-expanded="true" aria-controls="res-guide-body">
+        <span class="guide-title" id="res-guide-title">見分け方</span>
+        <svg class="guide-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <dl class="guide-body" id="res-guide-body"></dl>
+    </div>
     <div class="result-actions">
       <a id="res-link" class="btn ghost" href="#" target="_blank" rel="noopener">Google マップで確認</a>
       <button id="btn-next" class="btn primary">次のラウンドへ</button>
@@ -384,6 +391,13 @@
   <div class="result-card wide">
     <div class="result-place" id="mres-place">—</div>
     <div class="mres-rows" id="mres-rows"></div>
+    <div class="guide" id="mres-guide" hidden>
+      <button type="button" class="guide-head" id="mres-guide-head" aria-expanded="true" aria-controls="mres-guide-body">
+        <span class="guide-title" id="mres-guide-title">見分け方</span>
+        <svg class="guide-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <dl class="guide-body" id="mres-guide-body"></dl>
+    </div>
     <div class="result-actions">
       <a id="mres-link" class="btn ghost" href="#" target="_blank" rel="noopener">Google マップで確認</a>
       <button id="btn-mnext" class="btn primary">次のラウンドへ</button>
@@ -433,13 +447,14 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
-<script src="js/common.js?v=30"></script>
-<script src="js/locations.js?v=30"></script>
-<script src="js/maps.js?v=30"></script>
-<script src="js/pano.js?v=30"></script>
-<script src="js/fx.js?v=30"></script>
-<script src="js/net.js?v=30"></script>
-<script src="js/multi.js?v=30"></script>
-<script src="js/game.js?v=30"></script>
+<script src="js/common.js?v=31"></script>
+<script src="js/locations.js?v=31"></script>
+<script src="js/guide.js?v=31"></script>
+<script src="js/maps.js?v=31"></script>
+<script src="js/pano.js?v=31"></script>
+<script src="js/fx.js?v=31"></script>
+<script src="js/net.js?v=31"></script>
+<script src="js/multi.js?v=31"></script>
+<script src="js/game.js?v=31"></script>
 </body>
 </html>

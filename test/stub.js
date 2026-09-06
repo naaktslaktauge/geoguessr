@@ -54,6 +54,7 @@ function FakeEl(id){
     getPropertyValue:function(k){ return this._p[k]; }
   };
   this.children = [];
+  this._attr = {};
   this.textContent = ""; this.innerHTML = ""; this.value = "";
   this.hidden = false; this.disabled = false; this.href = "";
   var self = this;
@@ -70,6 +71,22 @@ FakeEl.prototype.appendChild = function(c){ this.children.push(c); return c; };
 Object.defineProperty(FakeEl.prototype, "innerHTML", {
   get: function(){ return this._html || ""; },
   set: function(v){ this._html = v; if (v === "") this.children = []; },
+  configurable: true
+});
+FakeEl.prototype.setAttribute = function(k, v){ this._attr[k] = String(v); };
+FakeEl.prototype.getAttribute = function(k){
+  return (k in this._attr) ? this._attr[k] : null;
+};
+// 本物の DOM に合わせる。textContent に "" を入れると子要素は消え、
+// 子要素があるときは読み出すとその中身がつながって返る
+Object.defineProperty(FakeEl.prototype, "textContent", {
+  get: function(){
+    if (this.children.length){
+      return this.children.map(function(c){ return c.textContent; }).join("");
+    }
+    return this._text || "";
+  },
+  set: function(v){ this._text = String(v == null ? "" : v); this.children = []; },
   configurable: true
 });
 FakeEl.prototype.querySelectorAll = function(){ return []; };

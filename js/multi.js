@@ -661,6 +661,8 @@ const Multi = (() => {
       : "出題地点：" + st.location.lat.toFixed(4) + ", " + st.location.lng.toFixed(4);
     $("mres-link").href = "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" +
                           st.location.lat + "," + st.location.lng;
+    // 出題者ありモードでは地点名を伏せないので国名も出る。無い場合はカードごと出ない
+    Guide.render("mres-guide", st.location.country);
 
     const tb = $("mres-rows");
     tb.innerHTML = "";

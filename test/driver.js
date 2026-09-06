@@ -1275,6 +1275,84 @@ function sectionO(){
 }
 
 /* ============================================================
+ * P. 国の見分け方カード
+ *   正解発表のあとに出す解説。データが106か国ぶん揃っていることと、
+ *   実際の画面に描かれることを確かめる。
+ * ============================================================ */
+async function sectionP(){
+  say("");
+  say("━━━ P. 国の見分け方 ━━━");
+
+  /* --- データが地点側と噛み合っているか --- */
+  var names = Object.keys(GUIDE);
+  var missing = LOC_COUNTRIES.filter(function(c){ return !GUIDE[c]; });
+  var extra   = names.filter(function(c){ return LOC_COUNTRIES.indexOf(c) < 0; });
+  check("★P 出題される国すべてに解説がある", missing.length === 0, missing.slice(0,5).join("、"));
+  check("P 出題されない国の解説は無い", extra.length === 0, extra.slice(0,5).join("、"));
+
+  var badDrive = names.filter(function(n){ return ["左","右"].indexOf(GUIDE[n].drive) < 0; });
+  var badCc    = names.filter(function(n){ return !/^[A-Z]{2}$/.test(GUIDE[n].cc); });
+  check("P 走行車線が左右のどちらかで入っている", badDrive.length === 0, badDrive.join("、"));
+  check("P 国コードが2文字で入っている", badCc.length === 0, badCc.join("、"));
+
+  // 空文字の項目があると、その行だけ見出しが出て中身が無い状態になる
+  var empty = [];
+  names.forEach(function(n){
+    ["sign","land","build","tip"].forEach(function(k){
+      if (k in GUIDE[n] && !GUIDE[n][k]) empty.push(n + "の" + k);
+    });
+  });
+  check("★P 中身が空の項目が無い", empty.length === 0, empty.slice(0,4).join("、"));
+
+  check("P 国旗の絵文字が作れる", flagOf("JP") === "🇯🇵", flagOf("JP"));
+  check("P 国コードが壊れていても落ちない", flagOf("") === "" && flagOf(null) === "");
+
+  /* --- ソロの正解発表で実際に描かれるか --- */
+  Net.close();
+  Pano.init(el("pano"));
+  S.settings.rounds = 3; S.settings.timeLimit = 300;
+  S.settings.region = "japan"; S.settings.difficulty = "all";
+  await startGame(); await tick();
+  __mapClicks[GUESS_CLICK]({ latlng:{ lat:35.0, lng:135.0 } });
+  clickEl("btn-guess"); await tick();
+
+  var box = el("res-guide"), title = el("res-guide-title"), body = el("res-guide-body");
+  check("★P 正解発表に見分け方が出る", box.hidden === false, box.hidden);
+  check("★P 見出しがその国の名前になる", title.textContent.indexOf("日本の見分け方") >= 0,
+        title.textContent);
+  check("★P 中身が描かれている", body.children.length >= 8, body.children.length + "個");
+  check("P 走行車線が「側通行」まで含めて出る",
+        body.textContent.indexOf("左側通行") >= 0, body.textContent.slice(0, 40));
+
+  /* --- 開閉が効き、端末に記憶されるか --- */
+  var head = el("res-guide-head");
+  check("P 最初は開いている", body.hidden === false && head.getAttribute("aria-expanded") === "true");
+  clickEl("res-guide-head");
+  check("★P 押すと閉じる", body.hidden === true && head.getAttribute("aria-expanded") === "false");
+  check("★P 閉じた状態が保存される", localStorage.getItem("gg_guide_open") === "off",
+        String(localStorage.getItem("gg_guide_open")));
+  check("★P 対戦側も同時に閉じる", el("mres-guide-body").hidden === true);
+  clickEl("res-guide-head");
+  check("P もう一度押すと開く", body.hidden === false);
+
+  /* --- 解説の無い国が来ても落ちないこと --- */
+  Guide.render("res-guide", "存在しない国");
+  check("★P 解説の無い国ではカードごと出ない", el("res-guide").hidden === true);
+  Guide.render("res-guide", null);
+  check("P 国名が無くても落ちない", el("res-guide").hidden === true);
+
+  /* --- 対戦の正解発表でも出るか --- */
+  await newGame(2, { mode:"all", rounds:3, timeLimit:600 });
+  clickEl("btn-lobby-start"); await tick();
+  var st = latestState();
+  await answerAll(st); await tick();
+  check("★P 対戦の正解発表にも見分け方が出る", el("mres-guide").hidden === false,
+        el("mres-guide").hidden);
+  check("P 対戦でも中身が描かれている", el("mres-guide-body").children.length >= 8,
+        el("mres-guide-body").children.length + "個");
+}
+
+/* ============================================================
  * N. 回答アナウンス（全画面演出）
  * ============================================================ */
 async function sectionN(){
@@ -1383,6 +1461,7 @@ async function sectionN(){
 async function main(){
   Multi.init();
   initEvents();          // ソロ側のボタン配線も本番と同じように登録する
+  Guide.init();          // 見分け方カードの開閉。本番では DOMContentLoaded で実行される
 
   say("");
   say("━━━ A. 接続とロビー ━━━");
@@ -1602,6 +1681,7 @@ async function main(){
   await sectionM();
   await sectionN();
   sectionO();
+  await sectionP();
 
   say("");
   say("════════════════════════════════");

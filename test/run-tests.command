@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 python3 - <<'PY'
 import re, json
-files = ['test/stub.js','js/common.js','js/locations.js','js/maps.js','js/pano.js',
+files = ['test/stub.js','js/common.js','js/locations.js','js/guide.js','js/maps.js','js/pano.js',
          'js/fx.js','js/net.js','js/multi.js','js/game.js','test/driver.js']
 src = "\n".join(open(f, encoding='utf-8').read() for f in files)
 

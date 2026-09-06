@@ -162,6 +162,7 @@ function showRoundResult(loc, guess, km, score, timeUp){
   ResultMap.show("result-map", loc, guess);
 
   $("res-place").textContent = loc.name + "（" + loc.country + "）";
+  Guide.render("res-guide", loc.country);      // 次から当てられるように見分け方を出す
   $("res-dist").textContent  = timeUp ? "時間切れ — 回答なし" : "正解との距離：" + fmtDist(km);
   $("res-score").textContent = score.toLocaleString();
   $("res-bar").style.width = "0%";
@@ -293,6 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initApiKeyUI();
   initModal();
   Fx.init();
+  Guide.init();
   initEvents();
   Multi.init();
   initMapSizeControls(() => { GuessMap.refresh(); Multi.refreshMap(); });
