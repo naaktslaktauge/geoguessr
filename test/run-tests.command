@@ -25,5 +25,11 @@ PY
 
 osascript -l JavaScript test/_build.js 2>&1 | grep -v '^\[object Promise\]$'
 rm -f test/_build.js
+
+# 難易度の割り当ては生成ツール側（Python）にあり、出来上がった locations.js を
+# 見るだけでは「同点をどう扱ったか」が分からないので、こちらも一緒に流す
+echo
+python3 tools/test_difficulty.py
+
 echo
 read -n 1 -s -r -p "終了するには何かキーを押してください..."

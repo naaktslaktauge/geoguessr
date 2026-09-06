@@ -13,7 +13,7 @@ const Fx = (() => {
     ["rokkonshojo_1.png", "rokkonshojo_1.jpg", "rokkonshojo_1.webp"],
     ["rokkonshojo_2.jpg", "rokkonshojo_2.png", "rokkonshojo_2.webp"]
   ];
-  const CLIP_URL  = "rokkonshojo.mp3?v=29";  // 差し替え時にキャッシュを更新させる
+  const CLIP_URL  = "rokkonshojo.mp3?v=30";  // 差し替え時にキャッシュを更新させる
   const CLIP_SEC  = 10;           // 音を流す長さ
   const FADE_SEC  = 1.5;          // 終わりのフェードアウト
   let queue = [], showing = false, ctx = null, hideTimer = null;

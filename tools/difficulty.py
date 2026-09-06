@@ -14,6 +14,7 @@
 アフリカを選んだときに全部「むずかしい」になってしまう。
 「日本の中では難しい町」「アフリカの中では分かりやすい街」を表せるようにする。
 """
+import math
 
 # 国の見分けやすさ（2=一目で分かる / 1=ある程度絞れる / 0=紛らわしい・なじみが薄い）
 # 文字・景観・車・植生の特徴と、日本人にとってのなじみの深さで決めている
@@ -30,7 +31,25 @@ COUNTRY_TIER = {
 }
 def country_tier(cc): return COUNTRY_TIER.get(cc, 0)
 
-def familiarity(cc, has_ja_name, alt_count, is_capital, pop):
+# 地物コードによる格。GeoNames は「県庁所在地」「市役所のある町」「集落」を
+# 区別して持っている。10万件規模になると人口だけでは差が付かない
+# （日本のデータは大半が人口0として登録されている）ため、ここを効かせる。
+PLACE_RANK = {
+ "PPLC": 1.0,   # 首都
+ "PPLA": 1.2,   # 州都・県庁所在地
+ "PPLA2":0.7,   # 郡・市の中心
+ "PPLA3":0.4,
+ "PPLA4":0.25,
+ "PPL":  0.0,   # ふつうの町
+ "PPLX": 0.0,   # 市街地の一区画
+ "PPLL":-0.3,   # 集落
+ "PPLF":-0.3,   # 農村
+ "PPLS":-0.3,
+ "PPLQ":-0.6,   # 廃村
+ "PPLW":-0.6,
+}
+
+def familiarity(cc, has_ja_name, alt_count, is_capital, pop, fcode=""):
     """当てやすさの点数。国の見分けやすさが支配的で、街の知名度が上乗せされる"""
     s  = country_tier(cc) * 1.5                                    # 0 / 1.5 / 3 ← 主
     s += 0.5 if has_ja_name else 0.0                               # 日本語の呼び名がある
@@ -41,16 +60,34 @@ def familiarity(cc, has_ja_name, alt_count, is_capital, pop):
           0.4 if alt_count >= 8  else 0.0)
     s += 0.5 if is_capital else 0.0
     s += 0.5 if pop >= 1_000_000 else (0.25 if pop >= 200_000 else 0.0)
+    s += PLACE_RANK.get(fcode, 0.0)
+    # ここまでは段階で付けているため、10万件だと同点が大量に生まれ、
+    # 順位が並び順まかせになってしまう（人口400人の村が「やさしい」になっていた）。
+    # 最後に連続値で細かな差を付けて、同点をほぐす。
+    s += min(0.9, math.log10(alt_count + 1) * 0.35)
+    s += min(0.9, math.log10(pop + 1) * 0.15)
     return s
 
 # エリア内での上位何%をどの難易度にするか
 EASY_PCT, NORMAL_PCT = 0.12, 0.45      # 上位12%=やさしい、45%まで=ふつう、残り=むずかしい
 
 def assign_by_rank(items, score_of):
-    """エリア単位で相対順位に直して難易度を割り当てる"""
+    """エリア単位で相対順位に直して難易度を割り当てる。
+
+    同じ点数のものは必ず同じ難易度にする。日本の小さな町のように
+    GeoNames が人口も別名もほとんど持っていない地点は何万件も同点になり、
+    その塊の途中で線を引くと「区別が付かないのに片方だけやさしい」に
+    なってしまう（人口0の集落が東京と同じ「やさしい」に入っていた）。
+    塊が枠に収まりきらないときは、丸ごと下の段へ送る。"""
     ranked = sorted(items, key=lambda x: -score_of(x))
     n = len(ranked)
-    for i, it in enumerate(ranked):
-        p = (i + 0.5) / n
-        it["diff"] = 1 if p < EASY_PCT else (2 if p < NORMAL_PCT else 3)
+    i = 0
+    while i < n:
+        s = score_of(ranked[i])
+        j = i
+        while j < n and score_of(ranked[j]) == s: j += 1
+        p = j / n                       # 塊の末尾がどこに来るか
+        d = 1 if p <= EASY_PCT else (2 if p <= NORMAL_PCT else 3)
+        for k in range(i, j): ranked[k]["diff"] = d
+        i = j
     return ranked

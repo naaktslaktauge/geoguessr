@@ -1203,6 +1203,78 @@ async function sectionM(){
 
 
 /* ============================================================
+ * O. 出題地点データの健全性
+ *   locations.js は生成物なので、作り直すたびに壊れていないか確かめる。
+ *   ここで挙げている項目は、実際に10万件へ増やしたときに見つかった不具合。
+ * ============================================================ */
+function sectionO(){
+  say("");
+  say("━━━ O. 出題地点データ ━━━");
+
+  check("★O 10万地点以上ある", LOCATIONS.length >= 100000, LOCATIONS.length + "件");
+  check("O 国と地域の一覧に重複が無い",
+        new Set(LOC_COUNTRIES).size === LOC_COUNTRIES.length, LOC_COUNTRIES.length);
+
+  /* --- エリア×難易度の組み合わせがすべて埋まっているか ---
+     どれか1つでも空だと、その設定でゲームを始めたときに
+     pickLocations が条件を緩めて別のエリアや難易度を出してしまう --- */
+  var thin = [];
+  LOC_REGIONS.forEach(function(r){
+    [1,2,3].forEach(function(d){
+      var n = LOCATIONS.filter(function(l){ return l.region === r && l.diff === d; }).length;
+      if (n < 100) thin.push(r + "の難易度" + d + "が" + n + "件");
+    });
+  });
+  check("★O どのエリア・難易度でも100件以上ある", thin.length === 0, thin.join("、"));
+
+  /* --- 値の妥当性 --- */
+  var badLat = [], badName = [], badCountry = [], badDiff = [];
+  var BRACKET = /[（(\[「『<《）)\]」』>》]/;
+  var TRAILING = /^[・、,\s]|[・、,\s]$/;
+  LOCATIONS.forEach(function(l){
+    if (!(l.lat >= -85 && l.lat <= 85 && l.lng >= -180 && l.lng <= 180)) badLat.push(l.name);
+    if (!l.name || BRACKET.test(l.name) || TRAILING.test(l.name)) badName.push(l.name);
+    if (LOC_COUNTRIES.indexOf(l.country) < 0) badCountry.push(l.name);
+    if ([1,2,3].indexOf(l.diff) < 0) badDiff.push(l.name);
+  });
+  check("O 緯度経度がすべて範囲内", badLat.length === 0, badLat.slice(0,3).join("、"));
+  check("★O 名前に括弧や記号の切れ端が残っていない", badName.length === 0,
+        badName.length + "件 例:" + badName.slice(0,3).join("、"));
+  check("O 国名がすべて一覧にある", badCountry.length === 0, badCountry.slice(0,3).join("、"));
+  check("O 難易度が1〜3のみ", badDiff.length === 0, badDiff.slice(0,3).join("、"));
+
+  /* --- 日本の地点が「Fuchū」のようなラテン表記になっていないか --- */
+  var romaji = LOCATIONS.filter(function(l){
+    return l.country === "日本" && /[A-Za-z]/.test(l.name);
+  });
+  check("★O 日本の地点はすべて漢字・かな表記", romaji.length === 0,
+        romaji.length + "件 例:" + romaji.slice(0,3).map(function(l){ return l.name; }).join("、"));
+
+  /* --- 同じ場所が二重に入っていないか --- */
+  var seen = {}, dup = 0;
+  LOCATIONS.forEach(function(l){
+    var k = l.lat.toFixed(4) + "," + l.lng.toFixed(4);
+    if (seen[k]) dup++; else seen[k] = 1;
+  });
+  check("★O 同じ座標の地点が無い", dup === 0, dup + "件が重複");
+
+  /* --- 難易度が「同点まかせ」で割り振られていないか ---
+     日本は GeoNames に人口も別名もほとんど無く、何万件も同点になる。
+     以前は塊の途中で線を引いてしまい、人口0の集落が「やさしい」に入っていた。
+     やさしい地点が実在の町として見分けられるかを、名前の長さで粗く確かめる --- */
+  var jp = LOCATIONS.filter(function(l){ return l.country === "日本"; });
+  var jpEasy = jp.filter(function(l){ return l.diff === 1; });
+  var jpHard = jp.filter(function(l){ return l.diff === 3; });
+  var avg = function(a){ return a.reduce(function(s,l){ return s + l.name.length; }, 0) / a.length; };
+  check("O 日本の地点が十分ある", jp.length >= 5000, jp.length + "件");
+  check("★O 日本のやさしい地点は名前が短い（＝市町村名で、集落名ではない）",
+        avg(jpEasy) < avg(jpHard),
+        "やさしい" + avg(jpEasy).toFixed(2) + "字 / むずかしい" + avg(jpHard).toFixed(2) + "字");
+  check("★O やさしいに偏っていない", jpEasy.length < jp.length * 0.2,
+        Math.round(100 * jpEasy.length / jp.length) + "%");
+}
+
+/* ============================================================
  * N. 回答アナウンス（全画面演出）
  * ============================================================ */
 async function sectionN(){
@@ -1529,6 +1601,7 @@ async function main(){
   await sectionL();
   await sectionM();
   await sectionN();
+  sectionO();
 
   say("");
   say("════════════════════════════════");
