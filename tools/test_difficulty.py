@@ -72,5 +72,29 @@ check("★ 人口が登録されていなくても市の中心は集落より上
       seat > small, f"市の中心{seat:.2f} / 集落{small:.2f}")
 
 print()
+print("━━━ キャッシュの指紋 ━━━")
+
+# index.html の ?v= が中身とずれていると、直したのに古いファイルが使われたり、
+# 直していないのに4MBを再ダウンロードさせたりする
+import hashlib, re
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+html = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+fx   = open(os.path.join(ROOT, "js", "fx.js"), encoding="utf-8").read()
+
+def dig(rel):
+    with open(os.path.join(ROOT, rel), "rb") as f:
+        return hashlib.sha1(f.read()).hexdigest()[:8]
+
+refs  = re.findall(r'(?:src|href)="((?:js|css)/[^"?]+)\?v=([^"]*)"', html)
+refs += re.findall(r'"([\w.]+\.mp3)\?v=([^"]*)"', fx)
+stale = [r for r, v in refs if dig(r) != v]
+check("★ 全ファイルに ?v= が付いている", len(refs) >= 10, str(len(refs)) + "件")
+check("★ ?v= が中身と一致している（tools/stamp.py を流し忘れていない）",
+      not stale, "ずれている: " + "、".join(stale))
+vs = [v for _, v in refs]
+check("★ ファイルごとに違う値になっている（1つ直すと全部落ちるのを防ぐ）",
+      len(set(vs)) == len(vs), "同じ値が重複: " + str(len(vs) - len(set(vs))) + "件")
+
+print()
 print("  合格 %d 件 / 失敗 %d 件" % (ok, ng))
 sys.exit(1 if ng else 0)

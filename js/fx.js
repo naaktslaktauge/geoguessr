@@ -13,7 +13,7 @@ const Fx = (() => {
     ["rokkonshojo_1.png", "rokkonshojo_1.jpg", "rokkonshojo_1.webp"],
     ["rokkonshojo_2.jpg", "rokkonshojo_2.png", "rokkonshojo_2.webp"]
   ];
-  const CLIP_URL  = "rokkonshojo.mp3?v=31";  // 差し替え時にキャッシュを更新させる
+  const CLIP_URL  = "rokkonshojo.mp3?v=45133b24";  // 差し替え時にキャッシュを更新させる
   const CLIP_SEC  = 10;           // 音を流す長さ
   const FADE_SEC  = 1.5;          // 終わりのフェードアウト
   let queue = [], showing = false, ctx = null, hideTimer = null;
@@ -43,6 +43,7 @@ const Fx = (() => {
    * 無音を1回鳴らして確実に開けておく。解放できるまで毎回の操作で試す。
    */
   function unlock(){
+    loadImages();          // 音が鳴らせない端末でも、画像だけは読んでおく
     const c = initAudio();
     if (!c) return;
     if (c.state === "suspended") c.resume().catch(() => {});
@@ -146,8 +147,13 @@ const Fx = (() => {
   }
 
   /* ---------- 演出画像 ----------
-     2枚そろって初めて画像モードにする。無ければ文字の演出のままにする。 */
+     2枚そろって初めて画像モードにする。無ければ文字の演出のままにする。
+     合わせて330KBあるので起動時には取りに行かず、最初の操作のあとに読む。
+     演出が出るのは対戦の回答時なので、それまでには十分間に合う。 */
+  let imgLoading = false;
   function loadImages(){
+    if (imgLoading) return;
+    imgLoading = true;
     const els = [$("fx-img1"), $("fx-img2")];
     if (!els[0] || !els[1]) return;
     let ok = 0, done = 0;
@@ -185,6 +191,7 @@ const Fx = (() => {
 
   /* ---------- 全画面アナウンス ---------- */
   function announce(name){
+    loadImages();          // まだ読んでいなければここで取りに行く
     queue.push(String(name || ""));
     if (!showing) next();
   }
@@ -221,7 +228,6 @@ const Fx = (() => {
   }
 
   function init(){
-    loadImages();
     // 操作のたびに解放を試み、鳴らせるようになったら監視をやめる
     addUnlockListeners();
     const cb = $("opt-sound");
